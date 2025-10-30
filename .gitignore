@@ -1,0 +1,13 @@
+
+# Files
+*.xlsx
+*.csv
+*pycache*
+*.DS_Store
+
+# Folders
+data/
+
+
+# Exceptions
+!2025 Results.xlsx
