@@ -24,11 +24,11 @@ Welcome to my NFL Analytics page! I love football, I love the NFL (Go Colts), an
 
 ## League Updates
 
-## Team Profiles
+### Team Profiles
 ![Week 8 Passing](./visuals/week%208/league/profiles/Team%20Passing%20Profiles%20-%20Thru%20Week%208.png)
 ![Week 8 Rushing](./visuals/week%208/league/profiles/Team%20Rushing%20Profiles%20-%20Thru%20Week%208.png)
 
-## Team Tiers
+### Team Tiers
 ![Week 8 Team](./visuals/week%208/league/tiers/Team%20Tiers%20-%20Thru%20Week%208.png)
 
 ![Week 8 Offense](./visuals/week%208/league/tiers/Team%20Offense%20Tiers%20-%20Thru%20Week%208.png)
@@ -40,7 +40,7 @@ Welcome to my NFL Analytics page! I love football, I love the NFL (Go Colts), an
 ![Week 8 Defense Rush](./visuals/week%208/league/tiers/Rushing%20Defense%20Tiers%20-%20Thru%20Week%208.png)
 
 
-## Team Rankings
+### Team Rankings
 ![Week 8 Offense](./visuals/week%208/league/ranks/NFL%20Offensive%20Ranks%20-%20Thru%20Week%208.png)
 ![Week 8 Defense](./visuals/week%208/league/ranks/NFL%20Defensive%20Ranks%20-%20Thru%20Week%208.png)
 
