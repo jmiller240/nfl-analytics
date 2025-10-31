@@ -43,11 +43,10 @@ def tier_chart(data_frame: pd.DataFrame,
                y_col: str,
                logos_col: str,
                title: str,
+               n_tiers: int = 6,
                x_reversed: bool = False,
                y_reversed: bool = False) -> go.Figure:
     
-    N_TIERS = 6
-
     ## Init
     fig = go.Figure()
 
@@ -88,6 +87,11 @@ def tier_chart(data_frame: pd.DataFrame,
     # fig.add_trace(best_fit_line)
 
     ## Add tier lines
+    slope_sign = -1 if slope < 0 else 1
+    slope = slope_sign * (y_range / x_range)
+    print(f'{x_range = }')
+    print(f'{y_range = }')
+    print(f'{slope = }')
 
     # Tier lines slope
     recip_slope = (-1/slope)
@@ -97,8 +101,8 @@ def tier_chart(data_frame: pd.DataFrame,
 
     first_tier = X.min() + (x_range*.1)
     last_tier = X.max() - (x_range*.1)
-    tier_spacing = (last_tier - first_tier) / (N_TIERS - 2)
-    tiers = [first_tier+(i*tier_spacing) for i in range(N_TIERS - 1)]
+    tier_spacing = (last_tier - first_tier) / (n_tiers - 2)
+    tiers = [first_tier+(i*tier_spacing) for i in range(n_tiers - 1)]
 
     for i in tiers:
         # Point on best fit line
@@ -150,6 +154,7 @@ def tier_chart(data_frame: pd.DataFrame,
     )
     fig.update_layout(
         template="nfl_template",
+        margin=dict(t=50, r=25),
         title=dict(
             text=title
         ),

@@ -6,11 +6,11 @@ nfl_template = {
         "paper_bgcolor": "white",
         "plot_bgcolor": "rgba(0,0,0,0)",
         "height": 500,
-        "width": 900,
+        "width": 700,
         "margin": {
             "t": 75,
             "l": 50,
-            "r": 50,
+            "r": 25,
             "b": 50
         },
         "title": {

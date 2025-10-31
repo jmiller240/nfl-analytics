@@ -62,7 +62,8 @@ def get_team_info() -> DataFrame:
     
     ## Download ##
     team_data = nfl.import_team_desc().set_index('team_abbr')
-    
+    team_data = team_data.copy()
+
     ## Filter ##
     team_data = team_data.loc[team_data.index.isin(current_teams), :]
 
@@ -85,6 +86,7 @@ def get_pbp_data(years: list[int]) -> DataFrame:
 
     ## Download ##
     pbp_data: DataFrame = nfl.import_pbp_data(years, downcast=True)
+    pbp_data = pbp_data.copy()
 
     ## Modifications ##
 
