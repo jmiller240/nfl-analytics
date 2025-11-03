@@ -112,12 +112,13 @@ def tier_chart(data_frame: pd.DataFrame,
         b = b_from_point_and_slope(P0, recip_slope)
 
         # Tier line
-        tier_line = (recip_slope * X) + b
+        tier_x = np.array([-1,1])
+        tier_line = (recip_slope * tier_x) + b
         # print(f'y = {recip_slope:.5f}x + {b}')
 
         fig.add_trace(
             go.Scatter(
-                x=X, 
+                x=tier_x, 
                 y=tier_line, 
                 mode='lines',
                 line=dict(color='#a7a7a7', width=1.2)
