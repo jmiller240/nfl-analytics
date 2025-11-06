@@ -61,7 +61,7 @@ def get_team_info() -> DataFrame:
                      'NYJ', 'PIT', 'SEA', 'SF', 'ATL', 'TB', 'TEN', 'DEN']
     
     ## Download ##
-    team_data = nfl.import_team_desc().set_index('team_abbr')
+    team_data = nfl.import_team_desc().set_index('team_abbr').rename_axis(index={'team_abbr': 'team'})
     team_data = team_data.copy()
 
     ## Filter ##
@@ -103,6 +103,9 @@ def get_pbp_data(years: list[int]) -> DataFrame:
                 (~pbp_data['play_type_nfl'].isin(NON_PLAY_TYPES))
     pbp_data['Non-Play Type'] = conditions
 
+    # Play Counted
+    pbp_data['Play Counted'] = pbp_data['penalty_team'] != pbp_data['posteam']
+
     # Snaps
     pbp_data['Offensive Snap'] = (((pbp_data['pass'] == 1) | (pbp_data['rush'] == 1)) & (~pbp_data['epa'].isna()))
 
@@ -118,6 +121,16 @@ def get_pbp_data(years: list[int]) -> DataFrame:
         (pbp_data['first_down'] == 1) |
         (pbp_data['touchdown'] == 1)
     )
+
+    # On schedule play
+    on_schedule_conditions = (pbp_data['Offensive Snap']) & (
+        ((pbp_data['down'] == 1) & (pbp_data['ydstogo'] <= 10)) |
+        ((pbp_data['down'] == 2) & (pbp_data['ydstogo'] <= 6)) | 
+        ((pbp_data['down'] == 3) & (pbp_data['ydstogo'] <= 4)) | 
+        ((pbp_data['down'] == 4) & (pbp_data['ydstogo'] <= 2))
+    )
+    pbp_data['On Schedule Play'] = on_schedule_conditions
+
 
     # Down & Distance
     pbp_data['Down & Distance'] = pbp_data.apply(lambda x: distance_range(x['down'], x['ydstogo']), axis=1)

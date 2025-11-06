@@ -57,10 +57,10 @@ def heat_map(x: list[str],
     )
     fig.update_xaxes(
         side="top",
-        tickfont=dict(textcase='upper'),
+        # tickfont=dict(textcase='upper'),
     )
     fig.update_yaxes(
-        tickfont=dict(textcase='upper')
+        # tickfont=dict(textcase='upper')
     )
     fig.update_layout(
         template='nfl_template',

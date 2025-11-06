@@ -129,6 +129,9 @@ def get_team_data(pbp_data: pd.DataFrame, unit: str):
         Successes=('success', 'sum'),
         RushSuccesses=('success', lambda x: x[pbp_data['rush'] == 1].sum()),
         PassSuccesses=('success', lambda x: x[pbp_data['pass'] == 1].sum()),
+        WPA=('wpa', 'sum'),
+        RushWPA=('wpa', lambda x: x[pbp_data['rush'] == 1].sum()),
+        PassWPA=('wpa', lambda x: x[pbp_data['pass'] == 1].sum()),
     )
 
     team_advanced['EPA / Play'] = round(team_advanced['EPA'] / team_advanced['PlaysAdv'], ROUND)

@@ -14,7 +14,7 @@ nfl_template = {
             "b": 50
         },
         "title": {
-            "font": {"size": 18, "weight": "bold", "color": "#1a1a1a"},
+            "font": {"size": 18, "color": "#1a1a1a"},
             "xref": "container",
             "x": 0.07,
             "yref": "container",
