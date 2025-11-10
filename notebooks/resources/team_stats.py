@@ -65,7 +65,7 @@ def calc_offensive_stats(pbp_data: pd.DataFrame) -> pd.DataFrame:
 
 
 
-def get_team_data(pbp_data: pd.DataFrame, unit: str):
+def get_team_stats(pbp_data: pd.DataFrame, unit: str):
     ROUND = 3
 
     gpby_col = 'posteam' if unit == 'offense' else 'defteam'
@@ -74,8 +74,11 @@ def get_team_data(pbp_data: pd.DataFrame, unit: str):
     team_standard = pbp_data.loc[(~pbp_data['Is Special Teams Play']), :].groupby(gpby_col).aggregate(
         Games=('game_id', 'nunique'),
         Plays=('posteam', lambda x: x[(pbp_data['rush_attempt'] == 1) | (pbp_data['pass_attempt'] == 1)].shape[0]),
+        OnSchedulePlays=('posteam', lambda x: x[(pbp_data['On Schedule Play'])].shape[0]),
         TDs=('touchdown', 'sum'),
         FirstDowns=('first_down', 'sum'),
+        ThirdDownAtts=(gpby_col, lambda x: x[(pbp_data['third_down_converted'] == 1) | (pbp_data['third_down_failed'] == 1)].shape[0]),
+        ThirdDownConvs=('third_down_converted', 'sum'),
 
         RushAttempts=('rush_attempt', 'sum'),
         RushYards=('rushing_yards', 'sum'),#, lambda x: x[pbp_data['rush'] == 1].sum()),
@@ -120,6 +123,7 @@ def get_team_data(pbp_data: pd.DataFrame, unit: str):
 
     ## Advanced ##
     team_advanced = pbp_data.loc[(pbp_data['Offensive Snap']) & (~pbp_data['Is Special Teams Play']), :].groupby(gpby_col).aggregate(
+    # team_advanced = pbp_data.groupby(gpby_col).aggregate(
         PlaysAdv=('posteam', 'size'),
         PassPlays=('pass', 'sum'),
         RushPlays=('rush', 'sum'),

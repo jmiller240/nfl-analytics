@@ -23,14 +23,21 @@ NON_PLAY_TYPES = ['GAME_START','END_QUARTER', 'TIMEOUT', 'END_GAME', 'COMMENT', 
 
 ''' Helpers '''
 
+def distance_range(ydstogo: int):
+    if ydstogo <= 3:
+        return 'Short'
+    elif ydstogo <= 6:
+        return 'Medium'
+    else:
+        return 'Long'
+
 ## Yard Thresholds
-def distance_range(down, yds):
-    
+def down_distance_range(down, yds):
     down_s = ''
     match down:
         case 1:
-            # down_s = '1st'
-            return '1st'
+            down_s = '1st'
+            # return '1st'
         case 2:
             down_s = '2nd'
         case 3:
@@ -41,7 +48,7 @@ def distance_range(down, yds):
             return ''
         
     yds_range = ''
-    if yds <= 2:
+    if yds <= 3:
         yds_range = 'Short'
     elif yds <= 6:
         yds_range = 'Medium'
@@ -123,7 +130,7 @@ def get_pbp_data(years: list[int]) -> DataFrame:
     )
 
     # On schedule play
-    on_schedule_conditions = (pbp_data['Offensive Snap']) & (
+    on_schedule_conditions = (
         ((pbp_data['down'] == 1) & (pbp_data['ydstogo'] <= 10)) |
         ((pbp_data['down'] == 2) & (pbp_data['ydstogo'] <= 6)) | 
         ((pbp_data['down'] == 3) & (pbp_data['ydstogo'] <= 4)) | 
@@ -131,9 +138,11 @@ def get_pbp_data(years: list[int]) -> DataFrame:
     )
     pbp_data['On Schedule Play'] = on_schedule_conditions
 
+    # Down Distance
+    pbp_data['Distance'] = pbp_data['ydstogo'].apply(lambda x: distance_range(x))
 
     # Down & Distance
-    pbp_data['Down & Distance'] = pbp_data.apply(lambda x: distance_range(x['down'], x['ydstogo']), axis=1)
+    pbp_data['Down & Distance'] = pbp_data.apply(lambda x: down_distance_range(x['down'], x['ydstogo']), axis=1)
 
 
     ## Filter ##

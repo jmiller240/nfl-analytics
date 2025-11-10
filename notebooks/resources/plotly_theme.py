@@ -1,10 +1,13 @@
 
-nfl_template = {
+
+import plotly.graph_objects as go
+
+dict = {
     "layout": {
         "font": {"family": "Helvetica", "size": 10, "color": "#000000"},
-        # "paper_bgcolor": "#f0f0f0",
-        "paper_bgcolor": "white",
-        "plot_bgcolor": "rgba(0,0,0,0)",
+        "paper_bgcolor": "#fafafa",
+        "plot_bgcolor": "white",
+        # "plot_bgcolor": "rgba(0,0,0,0)",
         "height": 500,
         "width": 700,
         "margin": {
@@ -20,26 +23,30 @@ nfl_template = {
             "yref": "container",
             "y": 0.95},
         "xaxis": {
+            "visible": True,
             "zeroline": False,
+            "linecolor": "#f0f0f0",
+            "linewidth": 1,
+            "mirror": True,
             "gridcolor": "#d1d1d1", 
-            "linecolor": "#d1d1d1", 
             "griddash": "solid",
             "gridwidth": 1,
             "ticks": "",
-            "tickcolor": "#d1d1d1",
             "title": {
                 "font": {"weight": "bold"},
                 "standoff": 5
             },
         },
         "yaxis": {
+            "visible": True,
             "zeroline": False,
+            "linecolor": "#f0f0f0", 
+            "linewidth": 1,
+            "mirror": True,
             "gridcolor": "#d1d1d1", 
-            "linecolor": "#d1d1d1", 
             "griddash": "solid",
             "gridwidth": 1,
             "ticks": "",
-            "tickcolor": "#d1d1d1",
             "title": {
                 "font": {"weight": "bold"},
                 "standoff": 5
@@ -57,3 +64,14 @@ nfl_template = {
         ],
     },
 }
+
+
+
+nfl_template = go.layout.Template(dict)
+# xaxis = go.layout.XAxis(
+#     linecolor='#f0f0f0',
+#     linewidth=1,
+#     mirror=True,
+#     gridcolor='red'
+# )
+# nfl_template.layout.update(xaxis=xaxis)
