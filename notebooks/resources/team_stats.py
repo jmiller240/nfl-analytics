@@ -75,6 +75,7 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str):
         Games=('game_id', 'nunique'),
         Plays=('posteam', lambda x: x[(pbp_data['rush_attempt'] == 1) | (pbp_data['pass_attempt'] == 1)].shape[0]),
         OnSchedulePlays=('posteam', lambda x: x[(pbp_data['On Schedule Play'])].shape[0]),
+        Yards=('yards_gained', 'sum'),
         TDs=('touchdown', 'sum'),
         FirstDowns=('first_down', 'sum'),
         ThirdDownAtts=(gpby_col, lambda x: x[(pbp_data['third_down_converted'] == 1) | (pbp_data['third_down_failed'] == 1)].shape[0]),
@@ -117,8 +118,13 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str):
     team_standard['PassAttempts'] = team_standard['PassAttempts'] - team_standard['Sacks']
 
     # Totals
-    team_standard['Total Yards'] = team_standard['RushYards'] + team_standard['PassYards']
+    # team_standard['Total Yards'] = team_standard['RushYards'] + team_standard['PassYards']
     team_standard['Turnovers'] = team_standard['INTs'] + team_standard['Fumbles']
+
+    # Per Play
+    team_standard['Yards / Play'] = team_standard['Yards'] / team_standard['Plays']
+    team_standard['Pass Yards / Play'] = team_standard['PassYards'] / team_standard['DesignedPassPlays']
+    team_standard['Rush Yards / Play'] = team_standard['RushYards'] / team_standard['DesignedRushPlays']
 
 
     ## Advanced ##
