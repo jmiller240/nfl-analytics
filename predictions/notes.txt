@@ -1,0 +1,5 @@
+
+
+
+# evaluating logistic regression
+https://medium.com/javarevisited/evaluating-the-logistic-regression-ae2decf42d61
