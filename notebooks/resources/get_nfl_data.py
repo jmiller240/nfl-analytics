@@ -7,6 +7,7 @@ Download and process data from nfl_data_py
 
 
 from pandas import DataFrame
+import numpy as np
 
 import nfl_data_py as nfl
 
@@ -65,6 +66,44 @@ def down_distance_range(down, yds):
 
     return f'{down_s} & {yds_range}'
 
+def run_location(run_location, run_gap):
+    if run_location == 'middle':
+        return 'C'
+    
+    if run_gap == 'end':
+        if run_location == 'left':
+            return 'L END'
+        elif run_location == 'right':
+            return 'R END'
+    elif run_gap == 'tackle':
+        if run_location == 'left':
+            return 'LT'
+        elif run_location == 'right':
+            return 'RT'
+    elif run_gap == 'guard':
+        if run_location == 'left':
+            return 'LG'
+        elif run_location == 'right':
+            return 'RG'
+
+def pass_length(air_yards):
+    if not air_yards:
+        return
+    
+    if air_yards <= 10:
+        return 'Short'
+    elif air_yards <= 20:
+        return 'Medium'
+    else:
+        return 'Long'
+
+def qb_position(qb_location):
+    if qb_location == 'U':
+        return 'Under Center'
+    elif qb_location == 'S':
+        return 'Shotgun'
+    elif qb_location == 'P':
+        return 'Pistol'
 
 
 ''' Main '''
@@ -83,6 +122,17 @@ def get_team_info() -> DataFrame:
     team_data = team_data.loc[team_data.index.isin(current_teams), :]
 
     return team_data
+
+
+def get_player_info() -> DataFrame:
+
+    # Download
+    player_info = nfl.import_players()
+
+    # Set index
+    player_info = player_info.set_index(['latest_team', 'short_name'])
+
+    return player_info
 
 
 def get_pbp_data(years: list[int]) -> DataFrame:
@@ -160,6 +210,13 @@ def get_pbp_data(years: list[int]) -> DataFrame:
     # Down & Distance
     pbp_data['Down & Distance'] = pbp_data.apply(lambda x: down_distance_range(x['down'], x['ydstogo']), axis=1)
 
+    # Play locations
+    pbp_data['QB Position'] = pbp_data['qb_location'].apply(lambda x: qb_position(x))
+
+    pbp_data['Run Location'] = pbp_data.apply(lambda x: run_location(x['run_location'], x['run_gap']), axis=1)
+
+    pbp_data['Pass Length'] = pbp_data['air_yards'].apply(lambda x: pass_length(x))
+    pbp_data['Pass Location'] = pbp_data['Pass Length'] + ' ' + pbp_data['pass_location'].str.capitalize()
 
     ## Filter ##
 
