@@ -135,6 +135,38 @@ def get_player_info() -> DataFrame:
     return player_info
 
 
+def get_matchups(years: list[int]) -> DataFrame:
+
+    # Download
+    schedule_data = nfl.import_schedules(years=years).copy()
+    print(schedule_data.head().to_string())
+
+    # Some cleaning
+    schedule_data = schedule_data.replace('OAK', 'LV')
+    
+    # Add some columns
+    schedule_data['winner'] = np.where(schedule_data['result'] > 0, 1, 0)
+
+    # Filer to desired columns / weeks
+    COLS = ['game_id', 'season', 'week', 'home_team', 'away_team', 'home_score', 'away_score', 'result', 'winner', 'total', 'home_moneyline', 'away_moneyline', 'spread_line', 'away_spread_odds', 'home_spread_odds', 'total_line', 'under_odds', 'over_odds']
+    FILTERS = (schedule_data['game_type'] == 'REG') & (schedule_data['result'] != 0)
+
+    matchups_df = schedule_data.loc[FILTERS, COLS].sort_values(by=['season', 'week']).reset_index(drop=True)
+
+    return matchups_df
+
+def get_weeks(years: list[int]) -> DataFrame:
+    
+    # Download schedules
+    schedule_data = nfl.import_schedules(years=years)[['season', 'week']].copy()
+
+    # Create master
+    master_weeks = schedule_data.drop_duplicates().reset_index(drop=True)
+    master_weeks.index = master_weeks.index + 1
+    master_weeks = master_weeks.reset_index(names=['master_week'])
+
+    return master_weeks
+
 def get_pbp_data(years: list[int]) -> DataFrame:
     '''
     Download and process play-by-play data from nfl_data_py
