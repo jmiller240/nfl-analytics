@@ -129,6 +129,9 @@ def get_player_info() -> DataFrame:
     # Download
     player_info = nfl.import_players()
 
+    # Cleaning
+    player_info.loc[(player_info['first_name'] == 'Sam') & (player_info['last_name'] == 'Darnold'), 'short_name'] = 'S.Darnold'
+
     # Set index
     player_info = player_info.set_index(['latest_team', 'short_name'])
 
@@ -182,8 +185,7 @@ def get_pbp_data(years: list[int]) -> DataFrame:
     '''
 
     ## Download ##
-    pbp_data: DataFrame = nfl.import_pbp_data(years, downcast=True)
-    pbp_data = pbp_data.copy()
+    pbp_data: DataFrame = nfl.import_pbp_data(years).copy()
 
     # Add ftn
     ftn = nfl.import_ftn_data(years=[2025], columns=FTN_COLS)
