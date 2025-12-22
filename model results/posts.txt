@@ -1,0 +1,12 @@
+🤖 Week 15 #NFL Betting Sheet 🤖
+
+I'm not much of a bettor, but on this Turkey Day I'm putting my money where my model is 🤖 
+
+I cooked a 'lil parlay taking the #Packers, #Chiefs, and #Bengals against the spread. 
+
+Will you ride with me?
+
+--------
+Picking games straight up is one thing, but picking against Vegas is another. How does simple EPA / Play data fare against Vegas?  
+
+My linear regression model is trained on the same EPA / Play data as my win probability model, but instead spits out predicted scores for the home and away team in each match up. Through two weeks of picks, the model is 14-15 (48%) both ATS and on game totals.

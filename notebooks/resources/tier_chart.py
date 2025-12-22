@@ -163,10 +163,8 @@ def tier_chart(data_frame: pd.DataFrame,
     )
 
     ## Logos
-    logo_size_x = math.ceil((VIZ_X_RANGE[1] - VIZ_X_RANGE[0]) / 10)
-    logo_size_y = math.ceil((VIZ_Y_RANGE[1] - VIZ_Y_RANGE[0]) / 10)
-    print(logo_size_x)
-    print(logo_size_y)
+    logo_size_x = (VIZ_X_RANGE[1] - VIZ_X_RANGE[0]) / 10
+    logo_size_y = (VIZ_Y_RANGE[1] - VIZ_Y_RANGE[0]) / 10
 
     for i in range(len(X)):
         fig.add_layout_image(
@@ -175,8 +173,8 @@ def tier_chart(data_frame: pd.DataFrame,
             yref="y",    # Reference y-coordinates to the y-axis
             x=X[i], # X-coordinate of the image's center
             y=Y[i], # Y-coordinate of the image's center
-            sizex=7,   # Width of the image in data units
-            sizey=7,   # Height of the image in data units
+            sizex=logo_size_x,   # Width of the image in data units
+            sizey=logo_size_y,   # Height of the image in data units
             xanchor="center", # Anchor the image by its center horizontally
             yanchor="middle", # Anchor the image by its middle vertically
             layer="above", # Place image above other plot elements
