@@ -142,7 +142,6 @@ def get_matchups(years: list[int]) -> DataFrame:
 
     # Download
     schedule_data = nfl.import_schedules(years=years).copy()
-    print(schedule_data.head().to_string())
 
     # Some cleaning
     schedule_data = schedule_data.replace('OAK', 'LV')
@@ -161,10 +160,11 @@ def get_matchups(years: list[int]) -> DataFrame:
 def get_weeks(years: list[int]) -> DataFrame:
     
     # Download schedules
-    schedule_data = nfl.import_schedules(years=years)[['season', 'week']].copy()
+    schedule_data = nfl.import_schedules(years=years).copy()
 
     # Create master
-    master_weeks = schedule_data.drop_duplicates().reset_index(drop=True)
+    master_weeks = schedule_data.loc[(schedule_data['game_type'] == 'REG'), ['season', 'week']].drop_duplicates()
+    master_weeks = master_weeks.sort_values(by=['season', 'week'], ascending=[True, True]).reset_index(drop=True)
     master_weeks.index = master_weeks.index + 1
     master_weeks = master_weeks.reset_index(names=['master_week'])
 
@@ -185,10 +185,13 @@ def get_pbp_data(years: list[int]) -> DataFrame:
     '''
 
     ## Download ##
-    pbp_data: DataFrame = nfl.import_pbp_data(years).copy()
+    pbp_data: DataFrame = nfl.import_pbp_data(years)
+    pbp_data = pbp_data.reset_index(drop=True).copy()
 
     # Add ftn
-    ftn = nfl.import_ftn_data(years=[2025], columns=FTN_COLS)
+    ftn_years = list(filter(lambda x: x >= 2022, years))
+    ftn = nfl.import_ftn_data(years=ftn_years, columns=FTN_COLS)
+    ftn = ftn.copy()
 
     pbp_data = pbp_data.merge(ftn, left_on=['game_id', 'play_id'], 
                                  right_on=['nflverse_game_id', 'nflverse_play_id'],
@@ -204,17 +207,20 @@ def get_pbp_data(years: list[int]) -> DataFrame:
     ## Add columns ##
 
     # Non-play types
-    conditions = (~pbp_data['play_type'].isna()) &\
+    conditions = ((pbp_data['play_type'].notna()) &\
                 (~pbp_data['play_type'].isin(['qb_kneel', 'qb_spike'])) &\
                 (pbp_data['timeout'] == 0) &\
-                (~pbp_data['play_type_nfl'].isin(NON_PLAY_TYPES))
+                (~pbp_data['play_type_nfl'].isin(NON_PLAY_TYPES)))
     pbp_data['Non-Play Type'] = conditions
 
     # Play Counted
-    pbp_data['Play Counted'] = pbp_data['penalty_team'] != pbp_data['posteam']
+    pbp_data['Play Counted'] = (pbp_data['penalty_team'] != pbp_data['posteam'])
 
+    # Drive
+    pbp_data['Master Drive ID'] = pbp_data['game_id'] + pbp_data['drive'].astype(str)
+    
     # Snaps
-    pbp_data['Offensive Snap'] = (((pbp_data['pass'] == 1) | (pbp_data['rush'] == 1)) & (~pbp_data['epa'].isna()))
+    pbp_data['Offensive Snap'] = (((pbp_data['pass'] == 1) | (pbp_data['rush'] == 1)) & (pbp_data['epa'].notna()))
 
     # Flag for special teams
     special_conditions = ((pbp_data['play_type_nfl'].isin(PLAY_TYPES_SPECIAL)) | (pbp_data['special_teams_play'] == 1))
@@ -228,6 +234,9 @@ def get_pbp_data(years: list[int]) -> DataFrame:
         (pbp_data['first_down'] == 1) |
         (pbp_data['touchdown'] == 1)
     )
+
+    # Explosives
+    pbp_data['Explosive Play'] = np.where(pbp_data['yards_gained'] >= 15, 1, 0)
 
     # On schedule play
     on_schedule_conditions = (
