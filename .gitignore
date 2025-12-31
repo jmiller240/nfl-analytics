@@ -8,6 +8,8 @@
 # Folders
 data/
 visuals/
+.venv
+conda_env/
 
 # Exceptions
 !2025 Results.xlsx

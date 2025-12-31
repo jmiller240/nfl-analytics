@@ -138,7 +138,7 @@ def get_player_info() -> DataFrame:
     return player_info
 
 
-def get_matchups(years: list[int]) -> DataFrame:
+def get_matchups(years: list[int], include_qb: bool = False) -> DataFrame:
 
     # Download
     schedule_data = nfl.import_schedules(years=years).copy()
@@ -150,10 +150,12 @@ def get_matchups(years: list[int]) -> DataFrame:
     schedule_data['winner'] = np.where(schedule_data['result'] > 0, 1, 0)
 
     # Filer to desired columns / weeks
-    COLS = ['game_id', 'season', 'week', 'home_team', 'away_team', 'home_score', 'away_score', 'result', 'winner', 'total', 'home_moneyline', 'away_moneyline', 'spread_line', 'away_spread_odds', 'home_spread_odds', 'total_line', 'under_odds', 'over_odds']
-    FILTERS = (schedule_data['game_type'] == 'REG') & (schedule_data['result'] != 0)
+    COLS = ['game_id', 'season', 'week', 'gameday', 'gametime', 'home_team', 'away_team', 'home_score', 'away_score', 'result', 'winner', 'total', 'home_moneyline', 'away_moneyline', 'spread_line', 'away_spread_odds', 'home_spread_odds', 'total_line', 'under_odds', 'over_odds']
+    if include_qb:
+        COLS = COLS + ['home_qb_id', 'away_qb_id']
+    FILTERS = (schedule_data['game_type'] == 'REG')
 
-    matchups_df = schedule_data.loc[FILTERS, COLS].sort_values(by=['season', 'week']).reset_index(drop=True)
+    matchups_df = schedule_data.loc[FILTERS, COLS].sort_values(by=['season', 'week', 'gameday', 'gametime']).reset_index(drop=True)
 
     return matchups_df
 

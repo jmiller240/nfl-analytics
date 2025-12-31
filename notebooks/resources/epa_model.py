@@ -3,6 +3,7 @@
 from pprint import pprint
 import math
 from datetime import datetime
+import os
 
 import pandas as pd
 import numpy as np
@@ -11,6 +12,7 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score, mean_squared_error, r2_score, confusion_matrix, f1_score, classification_report, ConfusionMatrixDisplay
 from sklearn.preprocessing import StandardScaler
+import joblib
 
 import nfl_data_py as nfl
 
@@ -19,6 +21,8 @@ from resources.get_nfl_data import get_team_info, get_matchups, get_weeks, get_p
 
 
 ''' Constants / Parameters  '''
+
+CURRENT_SEASON = 2025
 
 ## Parameters
 INPUT_YEARS = [i for i in range(2018, 2026)]
@@ -40,41 +44,113 @@ FEATURES = [f'Home_Team_{col}' for col in FEATURE_COLS] + [f'Away_Team_{col}' fo
 
 
 
-class EPAModel:
 
-    def __init__(self):
+class PicksModel:
+
+    file_name = 'resources/models/picks_model.joblib'
+
+    def __init__(self) -> LogisticRegression:
         pass
 
-    
-    def predict_week(self, prediction_season: int, prediction_week: int):
 
-        # Get team info
-        team_data = get_team_info().reset_index()
+    ''' Public '''
 
-        # Get inputs
-        input_matchups, pred_matchups = self.get_epa_inputs(prediction_season=prediction_season, prediction_week=prediction_week)
+    def predict_matchups(self, matchups: pd.DataFrame, moneyline_value: bool = False) -> pd.DataFrame:
+        '''
+        Predict winners from a list of matchups
 
-        X = input_matchups[FEATURES].to_numpy()
+        Params
+        ------
+        matchups : pd.DataFrame
+            dataframe containing at least two columns: ['home_team', 'away_team']
+        moneyline_value : bool
+            whether to compare predicted moneylines to actuals. If true, provide actual moneylines: ['home_moneyline', 'away_moneyline']
 
-        ''' Picks Model '''
-        print(f'Picks Model')
+        Returns
+        -------
+        '''
+
+        # Get EPA inputs for matchups
+        epa_utility = EPAUtility()
+        matchups = epa_utility.add_epa_to_matchups(matchups=matchups)
+
+        # Get X
+        X = matchups[FEATURES].to_numpy()
+
+        # Load model
+        model = self._load_model()
+        
+        # Predict
+        y_pred = model.predict(X)
+        probs = model.predict_proba(X)
+
+        # Add to matchups
+        matchups['prob_home'] = [r[1] for r in probs]
+        matchups['prob_away'] = [r[0] for r in probs]
+        matchups['pred_result'] = y_pred
+        matchups['pred'] = np.where(y_pred == 1, matchups['home_team'], matchups['away_team'])
+
+        # Moneylines
+        matchups['pred_home_ml'] = np.where(matchups['prob_home'] > matchups['prob_away'],
+                                        (-100*matchups['prob_home'])/(1 - matchups['prob_home']),
+                                        ((1 - matchups['prob_home'])/matchups['prob_home'])*100).astype(int)
+        matchups['pred_away_ml'] = np.where(matchups['prob_away'] > matchups['prob_home'],
+                                        (-100*matchups['prob_away'])/(1 - matchups['prob_away']),
+                                        ((1 - matchups['prob_away'])/matchups['prob_away'])*100).astype(int)
+        # Format moneylines
+        matchups['pred_home_ml_viz'] = np.where(matchups['pred_home_ml'] > 0, '+' + matchups['pred_home_ml'].astype(str), matchups['pred_home_ml'].astype(str))
+        matchups['pred_away_ml_viz'] = np.where(matchups['pred_away_ml'] > 0, '+' + matchups['pred_away_ml'].astype(str), matchups['pred_away_ml'].astype(str))
+
+        # Moneyline value
+        if moneyline_value:            
+            matchups['home_ml_value'] = matchups['home_moneyline'] - matchups['pred_home_ml']
+            matchups['away_ml_value'] = matchups['away_moneyline'] - matchups['pred_away_ml']
+            matchups['moneyline_value'] = np.where(matchups['home_ml_value'] >= matchups['away_ml_value'], 'home', 'away')
+
+        return matchups
+
+    def retrain_model(self):
+        # Get input matchups
+        input_matchups = self._get_model_inputs()
+        print(input_matchups.shape)
+        print(input_matchups.head().to_string())
+
+        # Train model
+        self._train_model_on_matchups(matchups=input_matchups)
+
+
+    ''' Private '''
+
+    def _build_model(self):
+        print(f'Picks model: building new model')
+
+        # Create a Logistic Regression model
+        model = LogisticRegression(max_iter=100, solver='liblinear') # Increased max_iter for convergence
+
+        return model
+
+    def _train_model_on_matchups(self, matchups: pd.DataFrame):
+        print(f'Training picks model')
 
         # Get X and y
-        y = input_matchups['winner'].to_numpy()
+        X = matchups[FEATURES].to_numpy()
+        y = matchups['winner'].to_numpy()
         print(f'X shape:', X.shape)
         print(f'Y shape:', y.shape)
 
         # Split data into training and testing sets
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
 
-        # Create a Logistic Regression model
-        picks_model = LogisticRegression(max_iter=100, solver='liblinear') # Increased max_iter for convergence
+        # Load model
+        model = self._load_model()
 
+        print('Model loaded. Training.')
+        
         # Train the model
-        picks_model.fit(X_train, y_train)
+        model.fit(X_train, y_train)
 
         # Make predictions
-        y_pred = picks_model.predict(X_test)
+        y_pred = model.predict(X_test)
 
         # Evaluate the model
         accuracy = accuracy_score(y_test, y_pred)
@@ -102,8 +178,78 @@ class EPAModel:
         print(f"f1: {f1:,.5f}")
         print(class_report)
 
+        # Save model
+        self._save_model(model)
+
+    def _get_model_inputs(self) -> pd.DataFrame:
+        # Get matchups
+        years = INPUT_YEARS[:]
+        years.remove(min(years))
+        print(years)
+        input_matchups = get_matchups(years=years)
+
+        # Remove matchups that haven't happened
+        input_matchups = input_matchups.loc[input_matchups['result'].notna(), :]
+
+        # Remove ties
+        input_matchups = input_matchups.loc[input_matchups['result'] != 0, :]
+
+        input_matchups = input_matchups.reset_index(drop=True)
+        
+        print(input_matchups.shape)
+        print(input_matchups.head(2).to_string())
+        print(input_matchups.tail(2).to_string())
+
+        # Get EPA inputs
+        epa_utility = EPAUtility()
+        input_matchups = epa_utility.add_epa_to_historical_matchups(matchups=input_matchups)
+        
+        return input_matchups
+    
+
+    ''' Utilities '''
+
+    def _load_model(self) -> LogisticRegression:
+        if os.path.exists(self.file_name):
+            print(f'Picks model: loading existing model')
+            model: LogisticRegression = joblib.load(self.file_name)
+            return model
+        
+        return self._build_model()
+
+    def _save_model(self, model: LogisticRegression):
+        print(f'Saving picks model.')
+        # Save model
+        joblib.dump(model, self.file_name)
+
+
+
+
+class EPAUtility:
+
+    def __init__(self):
+        pass
+
+    
+    def predict_week(self, prediction_season: int, prediction_week: int):
+
+        # Get team info
+        team_data = get_team_info().reset_index()
+
+        # Get inputs
+        input_matchups, pred_matchups = self.get_epa_inputs_model(prediction_season=prediction_season, prediction_week=prediction_week)
+        print(input_matchups.shape)
+        print(pred_matchups.shape)
+
+        X = input_matchups[FEATURES].to_numpy()
+
+
+        ''' Picks Model '''
+
+        picks_model = PicksModel()        
 
         ''' Scores Model '''
+
         print(f'Scores Model')
 
         ## Home Score ##
@@ -163,16 +309,15 @@ class EPAModel:
         print(f"Mean squared error: {mse:.4f}")
         print(f"Root mean squared error: {rmse:.4f}")
 
-
         ''' Predict week '''
+
         print(f'Predicting week')
 
         # Get inputs
         X = pred_matchups[FEATURES].to_numpy()
 
         ## PICKS
-        y_pred = picks_model.predict(X)
-        probs = picks_model.predict_proba(X)
+        y_pred, probs = picks_model.predict_matchups(pred_matchups)
 
         ## SCORES
         home_scores = home_score_model.predict(X)
@@ -218,9 +363,91 @@ class EPAModel:
 
         return predictions_df
 
+    def add_epa_to_matchups(self, matchups: pd.DataFrame) -> pd.DataFrame:
+        '''
+        Params
+        ------
+        matchups : pd.DataFrame
+            dataframe containing two columns: ['home_team', 'away_team']
+
+        Returns
+        -------
+        '''
+        
+        # Get seasons involved - one year prior plus current
+        seasons = [CURRENT_SEASON - 1, CURRENT_SEASON]
+
+        # # Weeks
+        master_weeks = get_weeks(years=seasons)
+
+        # Hack master-week to make sure add_epa_inputs uses latest completed games
+        matchups['master_week'] = 999999
+
+        # Get PBP
+        pbp_data = get_pbp_data(years=seasons)
+
+        ''' Calculate EPA for every historical team / game '''
+
+        # Calculate weekly EPA
+        weekly_epa_df = self.calculate_weekly_epa(pbp_data=pbp_data)
+
+        # Add master week
+        weekly_epa_df = weekly_epa_df.reset_index().merge(master_weeks, left_on=['season', 'week'], right_on=['season', 'week'], how='left')
+
+        # Set indices
+        master_weeks = master_weeks.set_index(['season', 'week'])
+        weekly_epa_df = weekly_epa_df.set_index(['master_week', 'team'])
+
+        ''' Add historical EPA Inputs to every matchup '''
+
+        matchups = self.add_epa_inputs_to_matchups(matchups=matchups, weekly_epa_df=weekly_epa_df)
+
+        return matchups
+
+    def add_epa_to_historical_matchups(self, matchups: pd.DataFrame) -> pd.DataFrame:
+        '''
+        Get inputs for epa predictions models
+
+        Returns
+        -------
+        '''
+
+        # Remove ties
+        matchups = matchups.loc[matchups['result'] != 0, :]
+
+        # Get seasons involved - one year prior to first season plus all seasons
+        first_season = matchups['season'].min()
+        seasons = [first_season - 1] + matchups['season'].unique().tolist()
+
+        # Weeks
+        master_weeks = get_weeks(years=seasons)
+
+        # Add week back matchups
+        matchups = matchups.merge(master_weeks, left_on=['season', 'week'], right_on=['season', 'week'])
+
+        # Get PBP
+        pbp_data = get_pbp_data(years=seasons)
+
+        ''' Calculate EPA for every historical team / game '''
+
+        # Calculate weekly EPA
+        weekly_epa_df = self.calculate_weekly_epa(pbp_data=pbp_data)
+
+        # Add master week
+        weekly_epa_df = weekly_epa_df.reset_index().merge(master_weeks, left_on=['season', 'week'], right_on=['season', 'week'], how='left')
+
+        # Set indices
+        master_weeks = master_weeks.set_index(['season', 'week'])
+        weekly_epa_df = weekly_epa_df.set_index(['master_week', 'team'])
+
+        ''' Add historical EPA Inputs to every matchup '''
+
+        matchups = self.add_epa_inputs_to_matchups(matchups=matchups, weekly_epa_df=weekly_epa_df)
+
+        return matchups
 
 
-    def get_epa_inputs(self, prediction_season: int, prediction_week: int):
+    def get_epa_inputs_model(self, prediction_season: int, prediction_week: int):
         '''
         Get inputs for epa predictions models
 
@@ -232,12 +459,10 @@ class EPAModel:
 
         ## Download ##
 
-        # Team info
-        # team_data = get_team_info()
-
         # Matchups
         master_matchups_df = get_matchups(years=INPUT_YEARS)
-
+        master_matchups_df = master_matchups_df.loc[master_matchups_df['result'] != 0, :]
+        
         # Weeks
         master_weeks = get_weeks(years=INPUT_YEARS)
 
@@ -263,6 +488,70 @@ class EPAModel:
 
 
         ''' Calculate EPA for every historical team / game '''
+
+        # Calculate weekly EPA
+        weekly_epa_df = self.calculate_weekly_epa(pbp_data=pbp_data)
+
+        # Add master week
+        weekly_epa_df = weekly_epa_df.reset_index().merge(master_weeks, left_on=['season', 'week'], right_on=['season', 'week'], how='left')
+
+        # Set indices
+        master_weeks = master_weeks.set_index(['season', 'week'])
+        weekly_epa_df = weekly_epa_df.set_index(['master_week', 'team'])
+
+
+        ''' Forge Home / Away EPA Inputs for every matchup '''
+
+        matchups = self.add_epa_inputs_to_matchups(matchups=matchups, weekly_epa_df=weekly_epa_df)
+
+        ''' Return '''
+
+        input_matchups = matchups.loc[matchups['master_week'].isin(INPUT_WEEKS), :].copy()
+        pred_matchups = matchups.loc[matchups['master_week'] == C_MASTER_WEEK, :].copy()
+
+        return input_matchups, pred_matchups
+
+
+    ''' Helpers '''
+
+    def add_epa_inputs_to_matchups(self, matchups: pd.DataFrame, weekly_epa_df: pd.DataFrame) -> pd.DataFrame:
+        
+        ## Calculate Rolling EPA per team / week
+
+        # Get list of matchup weeks
+        weeks: list[int] = matchups['master_week'].unique().tolist()
+
+        # Start DF
+        team_epa_inputs_df = pd.DataFrame(columns=['master_week', 'team'] + EPA_COLS + EPA_PLAY_COLS)
+
+        for week in weeks:
+
+            home_teams = matchups.loc[matchups['master_week'] == week, 'home_team'].unique().tolist()
+            away_teams = matchups.loc[matchups['master_week'] == week, 'away_team'].unique().tolist()
+            
+            week_df = self.get_week_epa_inputs(weekly_epa_df=weekly_epa_df, teams=home_teams+away_teams, master_week=week)
+            week_df['master_week'] = week
+
+            team_epa_inputs_df = pd.concat([team_epa_inputs_df, week_df])
+
+        team_epa_inputs_df = team_epa_inputs_df.reset_index(drop=True)
+
+        ## Add back to input matchups df
+
+        # Home team EPA
+        rename_dict = {col: f'Home_Team_{col}' for col in EPA_COLS + EPA_PLAY_COLS}
+        matchups = matchups.merge(team_epa_inputs_df, left_on=['master_week', 'home_team'], right_on=['master_week', 'team'], how='left').rename(columns=rename_dict).drop(columns='team')
+
+        # Away team EPA
+        rename_dict = {col: f'Away_Team_{col}' for col in EPA_COLS + EPA_PLAY_COLS}
+        matchups = matchups.merge(team_epa_inputs_df, left_on=['master_week', 'away_team'], right_on=['master_week', 'team'], how='left').rename(columns=rename_dict).drop(columns='team')
+
+        return matchups
+
+    def calculate_weekly_epa(self, pbp_data: pd.DataFrame) -> pd.DataFrame:
+        '''
+        Calculate EPA for every team / game in PBP data
+        '''
 
         pbp_adv_slice_nonst = pbp_data.loc[(pbp_data['Offensive Snap']) & (~pbp_data['Is Special Teams Play']), :]
         pbp_adv_slice_st = pbp_data.loc[pbp_data['Is Special Teams Play'], :]
@@ -313,70 +602,25 @@ class EPAModel:
         special_teams_epa.index = special_teams_epa.index.set_names('team', level='posteam')
 
         # Combine
-        master_epa_df = offense_epa.merge(defense_epa, left_index=True, right_index=True)
-        master_epa_df = master_epa_df.merge(special_teams_epa, left_index=True, right_index=True)
+        weekly_epa_df = offense_epa.merge(defense_epa, left_index=True, right_index=True)
+        weekly_epa_df = weekly_epa_df.merge(special_teams_epa, left_index=True, right_index=True)
 
-        master_epa_df = master_epa_df.reset_index().merge(master_weeks, left_on=['season', 'week'], right_on=['season', 'week'], how='left')
+        return weekly_epa_df
+    
 
-
-        ''' Reshape dfs '''
-
-        master_weeks = master_weeks.set_index(['season', 'week'])
-        master_epa_df = master_epa_df.set_index(['master_week', 'team'])
-
-
-        ''' Forge Home / Away EPA Inputs for every matchup '''
-
-        ## EPA Inputs
-        epa_inputs_df = pd.DataFrame(columns=['master_week', 'team'] + EPA_COLS + EPA_PLAY_COLS)
-
-        for week in ALL_MATCHUP_WEEKS:
-
-            home_teams = matchups.loc[matchups['master_week'] == week, 'home_team'].unique().tolist()
-            away_teams = matchups.loc[matchups['master_week'] == week, 'away_team'].unique().tolist()
-            
-            df = self.get_week_epa_inputs(master_epa_df=master_epa_df, teams=home_teams+away_teams, master_week=week)
-            df['master_week'] = week
-
-            epa_inputs_df = pd.concat([epa_inputs_df, df])
-
-        epa_inputs_df = epa_inputs_df.reset_index(drop=True)
-
-        ## Add back to input matchups df
-
-        # Home team EPA
-        rename_dict = {col: f'Home_Team_{col}' for col in EPA_COLS + EPA_PLAY_COLS}
-        matchups = matchups.merge(epa_inputs_df, left_on=['master_week', 'home_team'], right_on=['master_week', 'team'], how='left').rename(columns=rename_dict).drop(columns='team')
-
-        # Away team EPA
-        rename_dict = {col: f'Away_Team_{col}' for col in EPA_COLS + EPA_PLAY_COLS}
-        matchups = matchups.merge(epa_inputs_df, left_on=['master_week', 'away_team'], right_on=['master_week', 'team'], how='left').rename(columns=rename_dict).drop(columns='team')
-
-        # print(matchups.loc[(matchups['master_week'] == 137) & (matchups['away_team'] == 'IND'),:].to_string())
-
-        ''' Return '''
-
-        input_matchups = matchups.loc[matchups['master_week'].isin(INPUT_WEEKS), :].copy()
-        pred_matchups = matchups.loc[matchups['master_week'] == C_MASTER_WEEK, :].copy()
-
-        return input_matchups, pred_matchups
-
-
-    ''' Helpers '''
-
-    def get_week_epa_inputs(self, master_epa_df: pd.DataFrame, teams: list, master_week: int):
+    def get_week_epa_inputs(self, weekly_epa_df: pd.DataFrame, teams: list, master_week: int):
         
         # Start return df
         teams_df = pd.DataFrame(data={'team': teams}).set_index('team')
 
         # Sum up EPA and Plays for each team and last n games
         for team in teams:
-            team_sl = master_epa_df.loc[master_epa_df.index.get_level_values(1) == team, :]
+            team_sl = weekly_epa_df.loc[weekly_epa_df.index.get_level_values(1) == team, :]
 
             for n in [4,8,12,16]:
                 sl = team_sl.loc[(team_sl.index.get_level_values(0) < master_week),:].tail(n)
-                # if team == 'IND' and n == 4 and master_week == 137:
-                    # print(sl.head().to_string())
+                # if team == 'IND':
+                #     print(sl.to_string())
                     
                 for unit in ['O', 'D', 'ST']:
                     epa = sl[f'EPA_{unit}'].sum()

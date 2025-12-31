@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 
 dict = {
     "layout": {
-        "font": {"family": "Helvetica", "size": 10, "color": "#000000"},
+        "font": {"family": "Helvetica", "size": 10, "color": "#323232"},
         "paper_bgcolor": "#fafafa",
         "plot_bgcolor": "white",
         # "plot_bgcolor": "rgba(0,0,0,0)",

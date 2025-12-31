@@ -120,6 +120,7 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str):
     # Rates
     team_standard['Completion %'] = team_standard['PassCompletions'] / (team_standard['PassAttempts'] - team_standard['Sacks'])
     team_standard['On Schedule Rate'] = team_standard['OnSchedulePlays'] / team_standard['Plays']
+    team_standard['Third Down Conv %'] = team_standard['ThirdDownConvs'] / team_standard['ThirdDownAtts']
 
     team_standard['1D Rate'] = team_standard['FirstDowns'] / team_standard['Plays']
     team_standard['Pass 1D Rate'] = team_standard['Pass1Ds'] / team_standard['PassAttempts']
@@ -159,7 +160,9 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str):
     team_standard['Pass Att / Game'] = team_standard['PassAttempts'] / team_standard['Games']
     team_standard['Pass Yards / Game'] = team_standard['PassYards'] / team_standard['Games']
     team_standard['Pass 1Ds / Game'] = team_standard['Pass1Ds'] / team_standard['Games']
+    team_standard['Scramble Yards / Game'] = team_standard['ScrambleYards'] / team_standard['Games']
 
+    team_standard['TOs / Game'] = team_standard['Turnovers'] / team_standard['Games']
     team_standard['TFLs / Game'] = team_standard['TFLs'] / team_standard['Games']
 
     team_standard['Penalties / Game'] = team_standard['Penalties'] / team_standard['Games']
