@@ -51,7 +51,7 @@ def pass_len_mapper_func(pass_len):
 
 ''' Functions '''
 
-def team_form(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str, away_team: str, week: int, export: bool = False) -> go.Figure:
+def team_form_separate(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str, away_team: str, week: int, export: bool = False) -> go.Figure:
     ''' Team Form '''
 
     ## Data ##
@@ -117,8 +117,9 @@ def team_form(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str
                 color_discrete_sequence=['#323232']
             )
 
-            fig.add_hline(y=league_av_epa, line_width=1, line_dash="dash", line_color="#323232", layer='above',
-                        annotation=dict(text='League avg', font=dict(color='white', size=10), yanchor='bottom', xanchor='left'), annotation_position='left')
+            # League avg line
+            fig.add_hline(y=league_av_epa, line_width=1.5, line_dash="dash", line_color="white", layer='above',
+                        annotation=dict(text=f'League avg: {league_av_epa:.2f}', font=dict(color='white', size=10, weight='bold'), yanchor='bottom', xanchor='left'), annotation_position='left')
 
             # Game formatting
             for i in range(len(games)):
@@ -145,7 +146,7 @@ def team_form(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str
                     y1=1,  # y-coordinate of the top edge
                     fillcolor=opp_colors[i],  # Color to fill the rectangle
                     opacity=0.6,  # Opacity of the fill color
-                    line=dict(color="white", width=1),  # Line properties for the border
+                    line=dict(color="rgba(0,0,0,0)", width=.5),  # Line properties for the border
                     layer="below"  # Place the shape below the traces
                 )
                 # Number of plays
@@ -195,7 +196,7 @@ def team_form(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str
                 title=f'<b>{title}</b><br><sup>75-play rolling EPA / Play; last 8 games</sup>',
                 template='nfl_template',
                 showlegend=False,
-                margin=dict(t=75, b=40)
+                margin=dict(t=75, b=40, pad=5)
             )
             # Credits
             fig.add_annotation(
@@ -213,6 +214,266 @@ def team_form(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str
             if export: 
                 pio.write_image(fig, f'{VISUALS_FOLDER}/week {week}/game preview/{home_team}-{away_team}/{title} - {team} - Week {week} - {home_team} vs {away_team}.png',
                                     scale=6, width=900, height=500)
+
+def team_form_all_one(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str, away_team: str, week: int, export: bool = False) -> go.Figure:
+    ''' Team Form - All Together '''
+
+    ## Data ##
+    league_adv_offense_pbp = league_data.loc[(league_data['Offensive Snap']) &
+                                         (~league_data['Is Special Teams Play']), :].copy()
+
+    matchup_teams = [away_team, home_team]
+
+    league_av_epa = league_adv_offense_pbp['epa'].mean()
+    print(f'League av EPA / Play: {league_av_epa:,.2f}')
+
+    # Create line charts for units
+    charts = []
+    master_opponent_colors = []
+    master_opponent_logos = []
+    master_game_endpoints = []
+    master_game_midpoints = []
+    team_wordmarks = []
+
+    for opts in [[away_team, 'posteam'], [home_team, 'defteam'], [home_team, 'posteam'], [away_team, 'defteam']]:
+        team = opts[0]
+        unit = opts[1]
+        opp_unit = 'defteam' if unit == 'posteam' else 'posteam'
+
+        # Wrangle
+        team_sl = league_adv_offense_pbp.loc[league_adv_offense_pbp[unit] == team, ['game_id', 'start_time', 'posteam', 'defteam', 'epa']]
+
+        # Rolling EPA
+        team_sl['Rolling EPA / Play'] = team_sl.rolling(window=75, closed='left')['epa'].mean()
+
+        # Set play numbers
+        team_sl = team_sl.reset_index(drop=True)
+        team_sl.index = team_sl.index + 1
+
+        # Filter to Last 8 games
+        last_8_games = team_sl[['game_id', 'start_time']].drop_duplicates().tail(8)['game_id'].tolist()
+        team_sl = team_sl.loc[team_sl['game_id'].isin(last_8_games), :].copy()
+        play_num_range = team_sl.index.max() - team_sl.index.min()
+
+        # Team info
+        team_sl = team_sl.merge(team_data[['team_color', 'team_logo_espn']], 
+                            left_on=opp_unit, right_index=True, how='left').rename(columns={
+                                'team_color': 'opp_color',
+                                'team_logo_espn': 'opp_logo'
+                            })
+
+        # Data
+        x = team_sl.index
+        y = team_sl['Rolling EPA / Play'].to_numpy()
+        opp = team_sl[opp_unit].to_numpy()
+        colors = team_sl['opp_color'].tolist()
+        color_map = team_data['team_color'].to_dict()
+        team_wordmark = team_data.loc[team, 'team_wordmark']
+
+        # Games
+        games = team_sl['game_id'].unique().tolist()
+        opp_logos = team_sl.drop_duplicates(subset='game_id')['opp_logo'].tolist()
+        opp_colors = team_sl.drop_duplicates(subset='game_id')['opp_color'].tolist()
+        game_endpoints = []
+        game_midpoints = []
+        for g in games:
+            sl = team_sl.loc[team_sl['game_id'] == g, :]
+            midpoint_play = (sl.index[-1] + sl.index[0]) / 2
+            game_midpoints.append(midpoint_play)
+            game_endpoints.append((sl.index[0],sl.index[-1]))
+
+        # Figure
+        line = go.Scatter(
+            x=x,
+            y=y,
+        )
+
+        charts.append(line)
+        master_opponent_colors.append(opp_colors)
+        master_opponent_logos.append(opp_logos)
+        master_game_endpoints.append(game_endpoints)
+        master_game_midpoints.append(game_midpoints)
+        team_wordmarks.append(team_wordmark)
+
+
+    ## Figure ##
+
+    N_ROWS = 2
+    N_COLS = 2
+    V_SPACING = .3 / N_ROWS
+    H_SPACING = .15 / N_ROWS
+    avail_hgt = 1 - (V_SPACING * (N_ROWS - 1))
+    avail_wdt = 1 - (H_SPACING * (N_COLS - 1))
+    row_hgt = avail_hgt / N_ROWS
+    col_wdt = avail_wdt / N_COLS
+    fig = make_subplots(
+        rows=N_ROWS,
+        cols=N_COLS,
+        vertical_spacing=V_SPACING,
+        horizontal_spacing=H_SPACING,
+        specs=[[{'type': 'xy'}, {'type': 'xy'}]]*N_ROWS,
+        shared_xaxes=False,
+        shared_yaxes=False,
+        print_grid=True
+    )
+
+    fig.add_traces(
+        data=charts,
+        rows=[1,1,2,2],
+        cols=[1,2,1,2]
+    )
+
+    fig.update_traces(line=dict(width=3, color='#323232'))
+
+    i = 0
+    for r in range(N_ROWS):
+        for c in range(N_COLS):
+            # Variables
+            opp_colors = master_opponent_colors[i]
+            opp_logos = master_opponent_logos[i]
+            game_endpoints = master_game_endpoints[i]
+            game_midpoints = master_game_midpoints[i]
+            team_wordmark = team_wordmarks[i]
+
+            x_range = [game_endpoints[0][0], game_endpoints[-1][1]]
+
+            # Average EPA line
+            fig.add_hline(
+                row=r+1, col=c+1,
+                y=league_av_epa, 
+                line_width=1.5, 
+                line_dash="dash", 
+                line_color="white", 
+                layer='above',
+                annotation=dict(text=f'League avg: {league_av_epa:.2f}', font=dict(color='white', size=10, weight='bold'), yanchor='bottom', xanchor='left'), 
+                annotation_position='left'
+            )
+
+            # Game colors / logos
+            xref = 'x' if i == 0 else f'x{i + 1}'
+            yref = 'y' if i == 0 else f'y{i + 1}'
+            for g in range(len(opp_colors)):
+                # Opp logo
+                fig.add_layout_image(
+                    x=game_midpoints[g],
+                    y=-0.5 if c+1 == 2 else 0.5,
+                    sizex=(game_midpoints[-1] - game_midpoints[0])*.08,
+                    sizey=(game_midpoints[-1] - game_midpoints[0])*.08,
+                    xanchor='center',
+                    yanchor='middle',
+                    xref=xref, 
+                    yref=yref,
+                    source=opp_logos[g],
+                )
+                # Opp color
+                fig.add_shape(
+                    row=r+1, col=c+1,
+                    type="rect",
+                    xref=xref,
+                    x0=game_endpoints[g][0],  # x-coordinate of the left edge
+                    x1=game_endpoints[g][1],  # x-coordinate of the right edge
+                    yref=yref,
+                    y0=-.6,  # y-coordinate of the bottom edge
+                    y1=.6,  # y-coordinate of the top edge
+                    fillcolor=opp_colors[g],  # Color to fill the rectangle
+                    opacity=0.6,  # Opacity of the fill color
+                    line=dict(color="rgba(0,0,0,0)", width=.5),  # Line properties for the border
+                    layer="below"  # Place the shape below the traces
+                )
+            
+
+            # Team wordmark
+            response = requests.get(team_wordmark)
+            logo_img = Image.open(BytesIO(response.content))
+            wordmark_y = 1.05 - (r * row_hgt) - (r * V_SPACING)
+            wordmark_size = (x_range[1] - x_range[0]) * .3
+            fig.add_layout_image(
+                x=sum(x_range) / 2,
+                y=wordmark_y,
+                sizex=wordmark_size,
+                sizey=wordmark_size,
+                xanchor='center',
+                yanchor='middle',
+                xref=xref, 
+                yref='paper',
+                source=logo_img,
+            )
+
+            # Football for possession
+            if c == 0:
+                img = Image.open('./static/football.png')
+                fig.add_layout_image(
+                    x=col_wdt * .7,
+                    y=wordmark_y,
+                    sizex=.04,
+                    sizey=.04,
+                    xanchor='left',
+                    yanchor='middle',
+                    xref='paper',
+                    yref='paper',
+                    source=img,
+                )
+
+            # Plays range (xaxis)
+            fig.update_xaxes(
+                row=r+1, col=c+1,
+                range=x_range
+            )
+
+            i += 1
+
+    # More formatting
+    fig.update_yaxes(
+        col=1,
+        title='Rolling EPA / Play',
+        range=[-.6, .6]
+    )
+    fig.update_yaxes(
+        col=2,
+        range=[.6, -.6],
+        title=None
+    )
+    fig.update_xaxes(
+        row=2,
+        title='Play #',
+    )
+    fig.update_yaxes(
+        linecolor='#f0f0f0', mirror=True,
+        tickformat='.2f',
+        title_standoff=1,
+    )
+    fig.update_xaxes(
+        linecolor='#f0f0f0', mirror=True,
+        tickformat=',',
+        showgrid=False,
+        title_standoff=1
+    )
+    title = f'Team Form: {home_team} vs. {away_team}'
+    fig.update_layout(
+        title=f'<b>{title}</b><br><sup>75-play rolling EPA / Play across last 8 games; ahead of their Week {week} matchup</sup>',
+        template='nfl_template',
+        showlegend=False,
+        margin=dict(t=110, b=60, pad=5),
+        width=900, height=700
+    )
+
+    # Credits
+    fig.add_annotation(
+        text=f'Figure: @clankeranalytic | Data: nfl_data_py | {datetime.today().strftime("%Y-%m-%d")}',
+        showarrow=False,
+        xref='paper',
+        yref='paper',
+        y=-0.1, 
+        x=1,
+        align='right'
+    )
+
+    if export:
+        pio.write_image(fig, 
+                        f'{VISUALS_FOLDER}/week {week}/game preview/{home_team}-{away_team}/{title}.png',
+                        scale=6, width=900, height=700)
+
+    return fig
 
 
 def pass_rush_down_distance_tendencies(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str, away_team: str, week: int, export: bool = False) -> go.Figure:
@@ -344,13 +605,15 @@ def pass_rush_down_distance_tendencies(team_data: pd.DataFrame, league_data: pd.
                             scale=6, width=900, height=500)
 
 
-def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str, away_team: str, week: int, export: bool = False) -> go.Figure:
+def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str, away_team: str, home_qb_id: str, away_qb_id: str, week: int, export: bool = False) -> go.Figure:
     ''' Viewing Guide - Offensive Tendencies'''
     
     matchup_teams = [away_team, home_team]
     colors = [team_data.loc[team_data.index == away_team, 'team_color'].values[0], team_data.loc[team_data.index == home_team, 'team_color'].values[0]]
     wordmarks = [team_data.loc[team_data.index == away_team, 'team_wordmark'].values[0], team_data.loc[team_data.index == home_team, 'team_wordmark'].values[0]]
-
+    starting_qb_headshots = [player_info.loc[player_info['gsis_id'] == away_qb_id, 'headshot'].values[0],
+                            player_info.loc[player_info['gsis_id'] == home_qb_id, 'headshot'].values[0]]
+                            
     ## Data ##
 
     ## QB Positions
@@ -505,6 +768,7 @@ def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.
     pass_loc_texts = []
     pass_loc_xs = []
     pass_loc_ys = []
+    pass_loc_zs = []
     pass_loc_headshots = []
     run_loc_heatmaps = []
 
@@ -598,6 +862,7 @@ def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.
         pass_loc_texts.append(pass_loc_text)
         pass_loc_xs.append(pass_loc_x)
         pass_loc_ys.append(pass_loc_y)
+        pass_loc_zs.append(pass_loc_z)
         pass_loc_headshots.append(headshots)
 
         run_loc_heatmaps.append(run_loc)
@@ -645,6 +910,7 @@ def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.
     for i in range(len(pass_loc_heatmaps)):
         x = pass_loc_xs[i]
         y = pass_loc_ys[i]
+        z = pass_loc_zs[i]
         xref = 'x3' if i == 0 else 'x4'
         yref = 'y3' if i == 0 else 'y4'
 
@@ -657,6 +923,7 @@ def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.
         # Text
         text = pass_loc_texts[i]
         for t in range(len(text)):
+            font_color = 'white' if z[t] > 0.25 else 'black'
             fig.add_annotation(
                 x=x[t],
                 y=y[t],
@@ -667,7 +934,7 @@ def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.
                 showarrow=False,
                 align='left',
                 text=text[t],
-                font=dict(size=10),
+                font=dict(size=10, color=font_color),
             )
 
         # Headshots
@@ -736,8 +1003,9 @@ def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.
         # Team QB
         if ix == 0:
             for t in range(2):
-                response = requests.get(team_qbs.loc[team_qbs['posteam'] == matchup_teams[t], 'headshot'].values[0])
-                headshot = Image.open(BytesIO(response.content))
+                headshot = starting_qb_headshots[t]
+                # response = requests.get(team_qbs.loc[team_qbs['posteam'] == matchup_teams[t], 'headshot'].values[0])
+                # headshot = Image.open(BytesIO(response.content))
 
                 headshot_x = (col_width / 2) + ((col_width+H_SPACING)*t)
                 fig.add_layout_image(
@@ -995,17 +1263,16 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
 
     matchup_teams = [away_team, home_team]
     wordmarks = [team_data.loc[team_data.index == away_team, 'team_wordmark'].values[0], team_data.loc[team_data.index == home_team, 'team_wordmark'].values[0]]
+    secondary_colors = [team_data.loc[team_data.index == away_team, 'team_color2'].values[0], team_data.loc[team_data.index == home_team, 'team_color2'].values[0]]
 
     ## Data ##
 
     # Offensive / Defensive Stats
     team_offense = get_team_stats(league_data, unit='offense')
     team_offense = team_offense.merge(team_data[['team_logo_espn', 'team_wordmark']], left_index=True, right_index=True)
-    # print(team_offense.sort_values(by='EPA / Play', ascending=False).head().to_string())
 
     team_defense = get_team_stats(league_data, unit='defense')
     team_defense = team_defense.merge(team_data[['team_logo_espn', 'team_wordmark']], left_index=True, right_index=True)
-    # print(team_defense.sort_values(by='EPA / Play', ascending=False).head().to_string())
 
     # All teams
     teams = team_offense.index.tolist()
@@ -1055,9 +1322,6 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
         method = 'max' if col in asc_cols else 'min'
         defense_ranks_df[col] = team_defense[col].rank(method=method, ascending=asc)
 
-    # print(offense_ranks_df.head().to_string())
-    # print(defense_ranks_df.head().to_string())
-
 
     ## Figures ##
 
@@ -1066,6 +1330,8 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
         team1 = matchup_teams[i]
         team2 = matchup_teams[1-i]
         wordmarks = [wordmarks[i], wordmarks[1-i]]
+        sec_colors = [secondary_colors[i], secondary_colors[1-i]]
+        
         tables = []
 
         print(f' --- {team1} Offense vs {team2} Defense --- ')
@@ -1094,8 +1360,8 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
             columnwidth=[3,1,1],
             header=dict(
                 values=['Metric', 'Rank', 'Value'],
-                fill_color=['#CCCCCC'],
-                font=dict(weight='bold', color='#323232')
+                fill_color=[sec_colors[0]],#['#CCCCCC'],
+                font=dict(weight='bold', color='white')#color='#323232')
             ),
             cells=dict(
                 values=[epa_cols, ranks, vals],
@@ -1120,8 +1386,8 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
             columnwidth=[3,1,1],
             header=dict(
                 values=['Metric', 'Rank', 'Value'],
-                fill_color=['#CCCCCC'],
-                font=dict(weight='bold', color='#323232')
+                fill_color=[sec_colors[1]],#['#CCCCCC'],
+                font=dict(weight='bold', color='white')#color='#323232')
             ),
             cells=dict(
                 values=[epa_cols, ranks, vals],
@@ -1150,8 +1416,8 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
             columnwidth=[3,1,1],
             header=dict(
                 values=['Metric'] + cols,
-                fill_color=['#CCCCCC'],
-                font=dict(weight='bold', color='#323232')
+                fill_color=[sec_colors[0]],#['#CCCCCC'],
+                font=dict(weight='bold', color='white')#color='#323232')
             ),
             cells=dict(
                 values=vals,
@@ -1179,8 +1445,8 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
             columnwidth=[3,1,1],
             header=dict(
                 values=['Metric'] + cols,
-                fill_color=['#CCCCCC'],
-                font=dict(weight='bold', color='#323232')
+                fill_color=[sec_colors[1]],#['#CCCCCC'],
+                font=dict(weight='bold', color='white')#color='#323232')
             ),
             cells=dict(
                 values=vals,
@@ -1209,8 +1475,8 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
             columnwidth=[3,1,1],
             header=dict(
                 values=['Metric'] + cols,
-                fill_color=['#CCCCCC'],
-                font=dict(weight='bold', color='#323232')
+                fill_color=[sec_colors[0]],#['#CCCCCC'],
+                font=dict(weight='bold', color='white')#color='#323232')
             ),
             cells=dict(
                 values=vals,
@@ -1238,8 +1504,8 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
             columnwidth=[3,1,1],
             header=dict(
                 values=['Metric'] + cols,
-                fill_color=['#CCCCCC'],
-                font=dict(weight='bold', color='#323232')
+                fill_color=[sec_colors[1]],#['#CCCCCC'],
+                font=dict(weight='bold', color='white')#color='#323232')
             ),
             cells=dict(
                 values=vals,
@@ -1332,7 +1598,7 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
 
         # Credits
         fig.add_annotation(
-            text=f'Figure: @clankeranalytic | Data: nfl_data_py | {datetime.today().strftime("%Y-%m-%d")}',
+            text=f'<span style="color: rgba(0, 68, 27, 0.8); font-weight: bold;">Green</span> colors denote higher league ranks, <span style="color: rgba(64, 0, 75, 0.8); font-weight: bold;">purple</span> colors denote lower league ranks<br>Figure: @clankeranalytic | Data: nfl_data_py | {datetime.today().strftime("%Y-%m-%d")}',
             showarrow=False,
             xref='paper',
             yref='paper',
@@ -1340,7 +1606,6 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
             x=1,
             align='right'
         )
-        # fig.show()
         
         # Export
         if export: 
@@ -1355,7 +1620,13 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
 
 ''' Main '''
 
-def run_game_preview(league_data: pd.DataFrame, team_data: pd.DataFrame, player_info: pd.DataFrame, home_team: str, away_team: str, week: int):
+def run_game_preview(league_data: pd.DataFrame, team_data: pd.DataFrame, player_info: pd.DataFrame, matchup_dict: dict, week: int): #home_team: str, away_team: str,
+
+    home_team = matchup_dict['home_team']
+    away_team = matchup_dict['away_team']
+    home_qb_id = matchup_dict['home_qb_id']
+    away_qb_id = matchup_dict['away_qb_id']
+    
     print(f'Generating visuals: {home_team} vs. {away_team}')
 
     # Create folder
@@ -1363,17 +1634,17 @@ def run_game_preview(league_data: pd.DataFrame, team_data: pd.DataFrame, player_
 
     if not os.path.exists(folder):
         os.mkdir(folder)
-    # else:
-    #     print(f'{home_team}-{away_team}: already done!')
-    #     return
+    else:
+        print(f'{home_team}-{away_team}: already done!')
+        return
 
     # Run visuals
     print(f'team form')
-    team_form(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    team_form_all_one(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
     print(f'pass / rush tendencies')
     pass_rush_down_distance_tendencies(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
     print(f'viewing guide')
-    viewing_guide_offensive_tendencies(player_info=player_info, team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    viewing_guide_offensive_tendencies(player_info=player_info, team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, home_qb_id=home_qb_id, away_qb_id=away_qb_id, week=week, export=True)
     print(f'Strengths / weaknesses')
     strengths_weaknesses(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
 
@@ -1390,11 +1661,11 @@ def main(season: int, week: int):
     player_info = get_player_info()
 
     # Get matchups
-    matchups = get_matchups(years=[season])
-    matchups = matchups.loc[matchups['week'] == week, ['home_team', 'away_team']].to_dict(orient='records')
+    matchups = get_matchups(years=[season], include_qb=True)
+    matchups = matchups.loc[matchups['week'] == week, ['home_team', 'away_team', 'home_qb_id', 'away_qb_id']].to_dict(orient='records')
 
     # Run for each game
     for game in matchups:
-        if game['away_team'] != 'IND': continue
+        # if game['away_team'] != 'IND': continue
 
-        run_game_preview(league_data=league_data, team_data=team_data, player_info=player_info, home_team=game['home_team'], away_team=game['away_team'], week=week)
+        run_game_preview(league_data=league_data, team_data=team_data, player_info=player_info, matchup_dict=game, week=week) #home_team=game['home_team'], away_team=game['away_team'],
