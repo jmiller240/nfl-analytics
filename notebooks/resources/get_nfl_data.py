@@ -6,6 +6,7 @@ Download and process data from nfl_data_py
 '''
 
 
+import pandas as pd
 from pandas import DataFrame
 import numpy as np
 
@@ -185,6 +186,11 @@ def get_pbp_data(years: list[int]) -> DataFrame:
     -------
     pandas dataframe
     '''
+
+    if years == [2025]:
+        print('Reading local')
+        df = pd.read_csv('c:/Users/jack.miller/Documents/Personal/nfl-analytics/notebooks/data/2025_pbp.csv')
+        return df
 
     ## Download ##
     pbp_data: DataFrame = nfl.import_pbp_data(years)
