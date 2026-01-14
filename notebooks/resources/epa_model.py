@@ -73,7 +73,7 @@ class PicksModel:
         # Get EPA inputs for matchups
         epa_utility = EPAUtility()
         matchups = epa_utility.add_epa_to_matchups(matchups=matchups)
-
+        
         # Get X
         X = matchups[FEATURES].to_numpy()
 
@@ -373,7 +373,7 @@ class EPAUtility:
         Returns
         -------
         '''
-        
+
         # Get seasons involved - one year prior plus current
         seasons = [CURRENT_SEASON - 1, CURRENT_SEASON]
 
@@ -528,8 +528,9 @@ class EPAUtility:
 
             home_teams = matchups.loc[matchups['master_week'] == week, 'home_team'].unique().tolist()
             away_teams = matchups.loc[matchups['master_week'] == week, 'away_team'].unique().tolist()
-            
-            week_df = self.get_week_epa_inputs(weekly_epa_df=weekly_epa_df, teams=home_teams+away_teams, master_week=week)
+            all_teams = list(set(home_teams+away_teams))
+
+            week_df = self.get_week_epa_inputs(weekly_epa_df=weekly_epa_df, teams=all_teams, master_week=week)
             week_df['master_week'] = week
 
             team_epa_inputs_df = pd.concat([team_epa_inputs_df, week_df])

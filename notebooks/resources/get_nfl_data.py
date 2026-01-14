@@ -9,6 +9,7 @@ Download and process data from nfl_data_py
 import pandas as pd
 from pandas import DataFrame
 import numpy as np
+import os
 
 import nfl_data_py as nfl
 
@@ -139,7 +140,7 @@ def get_player_info() -> DataFrame:
     return player_info
 
 
-def get_matchups(years: list[int], include_qb: bool = False) -> DataFrame:
+def get_matchups(years: list[int], include_qb: bool = False, include_postseason: bool = False) -> DataFrame:
 
     # Download
     schedule_data = nfl.import_schedules(years=years).copy()
@@ -155,6 +156,8 @@ def get_matchups(years: list[int], include_qb: bool = False) -> DataFrame:
     if include_qb:
         COLS = COLS + ['home_qb_id', 'away_qb_id']
     FILTERS = (schedule_data['game_type'] == 'REG')
+    if include_postseason:
+        FILTERS = FILTERS | (schedule_data['week'] > 18)
 
     matchups_df = schedule_data.loc[FILTERS, COLS].sort_values(by=['season', 'week', 'gameday', 'gametime']).reset_index(drop=True)
 
@@ -173,7 +176,7 @@ def get_weeks(years: list[int]) -> DataFrame:
 
     return master_weeks
 
-def get_pbp_data(years: list[int]) -> DataFrame:
+def get_pbp_data(years: list[int], include_postseason: bool = False) -> DataFrame:
     '''
     Download and process play-by-play data from nfl_data_py
 
@@ -188,9 +191,10 @@ def get_pbp_data(years: list[int]) -> DataFrame:
     '''
 
     if years == [2025]:
-        print('Reading local')
-        df = pd.read_csv('c:/Users/jack.miller/Documents/Personal/nfl-analytics/notebooks/data/2025_pbp.csv')
-        return df
+        if os.path.exists(f'c:/Users/jack.miller/Documents/Personal/nfl-analytics/notebooks/data/2025_pbp.csv'):
+            print('Reading local')
+            df = pd.read_csv('c:/Users/jack.miller/Documents/Personal/nfl-analytics/notebooks/data/2025_pbp.csv')
+            return df
 
     ## Download ##
     pbp_data: DataFrame = nfl.import_pbp_data(years)
@@ -272,7 +276,11 @@ def get_pbp_data(years: list[int]) -> DataFrame:
     ## Filter ##
 
     # Regular season
-    pbp_data = pbp_data.loc[pbp_data['season_type'] == 'REG', :]
+    season_types = ['REG']
+    if include_postseason: 
+        season_types.append('POST')
+
+    pbp_data = pbp_data.loc[pbp_data['season_type'].isin(season_types), :]
 
 
     return pbp_data

@@ -18,6 +18,7 @@ from plotly.subplots import make_subplots
 from resources.plotly_theme import nfl_template
 from resources.get_nfl_data import get_pbp_data, get_team_info, get_player_info, get_matchups
 from resources.player_stats import get_player_stats
+from resources.team_stats import get_team_stats
 
 pio.templates['nfl_template'] = nfl_template
 
@@ -47,6 +48,198 @@ def down_mapper(down):
 
 
 ''' Visuals '''
+
+def offense_team_stats(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str, away_team: str, week: int, export: bool = False) -> go.Figure:
+
+    ## Variables ##
+
+    # Columns of interest
+    pass_cols = ['Pass Yards / Play', 'Pass Success Rate', 'Explosive Pass Rate', 'Pass 1D Rate', 'Completion %', 'Sack Rate', 'INT Rate']
+    rush_cols = ['Rush Yards / Play', 'Rush Success Rate', 'Explosive Rush Rate', 'Rush 1D Rate', 'Stuff Rate']
+    off_cols = ['On Schedule Rate', 'Scramble Yards / Game', 'TO Rate', 'TFL Rate', 'Penalties / Game', 'Penalty Yards / Game', 'Third Down Conv %', 'Third Down Success Rate', 'Red Zone Success Rate']
+    cols = pass_cols + rush_cols + off_cols
+
+    epa_cols = ['EPA / Play', 'Pass EPA / Play', 'Rush EPA / Play']
+
+    # Sort order
+    asc_cols = ['Stuff Rate', 'Sack Rate', 'INT Rate', 'TO Rate', 'TFL Rate', 'Penalties / Game', 'Penalty Yards / Game']
+    desc_cols = list(filter(lambda x: x not in asc_cols, cols))
+
+    # Display format
+    col_fmt = {'Pass Yards / Play': '.1f', 'Pass Success Rate': '.1%', 'Explosive Pass Rate': '.1%', 'Pass 1D Rate': '.1%', 'Completion %': '.1%', 'Sack Rate': '.1%', 'INT Rate': '.1%', 'Rush Yards / Play': '.1f', 'Rush Success Rate': '.1%', 'Explosive Rush Rate': '.1%', 'Rush 1D Rate': '.1%', 'Stuff Rate': '.1%', 'On Schedule Rate': '.1%', 'Scramble Yards / Game': '.1f', 'TO Rate': '.1%', 'TFL Rate': '.1%', 'Penalties / Game': '.1f', 'Penalty Yards / Game': '.0f', 'Third Down Conv %': '.1%', 'Third Down Success Rate': '.1%', 'Red Zone Success Rate': '.1%'}
+
+    # Matchup related
+    matchup_teams = [away_team, home_team]
+    logos = [team_data.loc[team_data.index == away_team, 'team_logo_espn'].values[0], team_data.loc[team_data.index == home_team, 'team_logo_espn'].values[0]]
+
+
+    ## Data ##
+
+    # Team stats - All 2025 game offensive performances
+    all_games_team_stats = get_team_stats(league_data, unit='offense', gpby_cols=['posteam', 'game_id'])
+    all_games_team_stats['Red Zone Success Rate'] = all_games_team_stats['Red Zone Success Rate'].fillna(0)
+
+    # print(all_games_team_stats.shape)
+    # print(all_games_team_stats.loc[('IND',),:].head().to_string())
+
+    # Team stats - This game
+    game_data = league_data.loc[(league_data['week'] == week) & (league_data['away_team'] == away_team) & (league_data['home_team'] == home_team), :]
+    game_team_stats = get_team_stats(game_data, unit='offense')
+
+    # Percentile this game performance
+    cols_to_use = ['Pass Yards / Play', 'Pass Success Rate', 'Explosive Pass Rate', 'Pass 1D Rate', 'Sack Rate', 'Rush Yards / Play', 'Rush Success Rate', 'Explosive Rush Rate', 'Rush 1D Rate', 'Stuff Rate', 'Third Down Success Rate', 'Red Zone Success Rate', 'TO Rate', 'TFL Rate']
+
+    data = game_team_stats.melt(
+        ignore_index=False,
+        value_vars=cols_to_use,
+        var_name='Metric',
+        value_name='Value'
+    )
+    data['Percentile'] = 0.0
+
+    for col in cols_to_use:
+        league_vals = all_games_team_stats[col].to_numpy()
+
+        order = 'asc' if col in asc_cols else 'desc'
+        for team in matchup_teams:
+            # Get team value from this game
+            conditions = (data.index == team) & (data['Metric'] == col)
+            team_val = data.loc[conditions, 'Value'].values[0]
+            
+            # Percentile
+            percentile = 0
+            if order == 'asc':
+                percentile = 1 - (percentileofscore(league_vals, team_val, kind='strict') / 100)
+            else:
+                percentile = percentileofscore(league_vals, team_val, kind='weak') / 100
+
+            data.loc[conditions, 'Percentile'] = percentile
+
+    data = data.merge(team_data[['team_logo_espn', 'team_color']], left_index=True, right_index=True)
+
+    data['Metric'] = pd.Categorical(data['Metric'], categories=cols_to_use, ordered=True)
+    data = data.sort_values(by='Metric')
+
+    # Formatting
+    def fmt_value(value: str, fmt: str):
+        return fmt.format(value)
+
+    col_fmt_py = {col: '{0:' + fmt + '}' for col,fmt in col_fmt.items()}
+
+    data['fmt'] = data['Metric'].map(col_fmt_py)
+    data['value str'] = data.apply(lambda x: fmt_value(x['Value'], x['fmt']), axis=1)
+    data['text'] = '<b>' + data['value str'].astype(str) + '</b> (' +  (data['Percentile']*100).round(0).astype(int).astype(str) + 'th %ile)'
+
+
+    ## Figure ##
+
+    # Metrics
+    metrics = data['Metric'].unique().tolist()
+    metrics = [metric.replace(' / Game', '') for metric in metrics]
+
+    # Percentiles
+    away_pcts = data.loc[away_team, 'Percentile'].tolist()
+    home_pcts = data.loc[home_team, 'Percentile'].tolist()
+
+    # Text
+    away_vals = data.loc[away_team, 'text'].tolist()
+    home_vals = data.loc[home_team, 'text'].tolist()
+
+    # Color
+    color_scale_len = len(px.colors.diverging.PRGn) - 1
+    away_colors = [px.colors.diverging.PRGn[int(p * color_scale_len)] for p in away_pcts]
+    away_text_colors = []
+    for p in away_pcts:
+        if p < .15 or p > .9: away_text_colors.append('white')
+        else: away_text_colors.append('#323232')
+
+    home_colors = [px.colors.diverging.PRGn[int(p * color_scale_len)] for p in home_pcts]
+    home_text_colors = []
+    for p in home_pcts:
+        if p < .15 or p > .9: home_text_colors.append('white')
+        else: home_text_colors.append('#323232')
+
+    # Create fig
+    HEIGHT = 575
+    ROW_HEIGHT = 30
+    MARGIN_TOP = 60
+    MARGIN_BOTTOM = 20
+
+    tbl = go.Table(
+        header=dict(
+            values=['', '', ''],
+            height=ROW_HEIGHT,
+            fill_color='rgba(0,0,0,0)',
+            font=dict(color=['#323232', 'white', 'white']),
+            line=dict(width=[0], color='#323232'),
+        ),
+        cells=dict(
+            values=[metrics, away_vals, home_vals],
+            height=ROW_HEIGHT,
+            fill_color=['rgba(0,0,0,0)', away_colors, home_colors],
+            font=dict(size=12, weight=['bold', 'normal', 'normal'], color=['#323232', away_text_colors, home_text_colors]),
+            line=dict(width=0, color='#cccccc'),
+            align=['left', 'center', 'center']
+        ),
+    )
+
+    fig = go.Figure(
+        data=[tbl]
+    )
+
+    tbl_hgt_pix = HEIGHT - MARGIN_TOP - MARGIN_BOTTOM
+    row_hgt = (ROW_HEIGHT / tbl_hgt_pix)
+    start_y = 1 - row_hgt
+    for l in range(len(metrics) + 1):
+        y = start_y - (row_hgt * l)
+        color = '#323232' if l == 0 or l == 5 or l == 10 else '#CCCCCC'
+        width = 1.5 if l == 0 or l == 5 or l == 10 else 1
+        fig.add_shape(
+            type='line',
+            yanchor='middle',
+            x0=0, x1=1,
+            y0=y, y1=y,
+            line=dict(
+                color=color,
+                width=width
+            )
+        )
+
+    for l in range(len(logos)):
+        fig.add_layout_image(
+            source=logos[l],
+            xref='paper', yref='paper',
+            xanchor='center', yanchor='bottom',
+            sizex=.09, sizey=.09,
+            x=((1/3)*(l+1)) + (1/3)/2,
+            y=.95
+        )
+
+    fig.update_layout(
+        template='nfl_template',
+        title=f'<b>Offensive Team Stats</b><br><sup>Week {week}: {home_team} vs. {away_team}',
+        width=700, height=HEIGHT,
+        margin=dict(t=MARGIN_TOP,l=25,r=25,b=MARGIN_BOTTOM)
+    )
+
+    # Credits
+    fig.add_annotation(
+        text=f'Percentile (in paren.) of all single-game offensive performances in 2025; <span style="color: rgba(64, 0, 75, 0.8); font-weight: bold;">purple</span> colors = lower percentiles, <span style="color: rgba(0, 68, 27, 0.8); font-weight: bold;">green</span> colors = higher percentiles<br>Figure: @clankeranalytic | Data: nfl_data_py | {datetime.today().strftime("%Y-%m-%d")}',
+        showarrow=False,
+        xref='paper',
+        yref='paper',
+        y=0, 
+        x=1,
+        align='right'
+    )
+
+    ## Export ##
+    if export:
+        pio.write_image(fig, f'{VISUALS_FOLDER}/week {week}/game review/{home_team}-{away_team}/Offensive Team Stats - Week {week} - {home_team} vs {away_team}.png',
+                                scale=6, width=700, height=575)
+
+    return fig
+
 
 def production_by_down(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str, away_team: str, week: int, export: bool = False) -> go.Figure:
     
@@ -114,22 +307,23 @@ def production_by_down(team_data: pd.DataFrame, league_data: pd.DataFrame, home_
         sl['EPA / Play'] = round(sl['EPA / Play'], 2)
 
         cols_perc = [f'{col} Percentile' for col in cols]
-        x = cols
-        y = list(map(lambda x: down_mapper(x), sl.index.get_level_values(1).tolist()))
-        z = sl[cols_perc].values
-        act_vals = sl[cols].values
+        x = list(map(lambda x: down_mapper(x), sl.index.get_level_values(1).tolist()))
+        y = cols
+        z = sl[cols_perc].values.transpose()
+        act_vals = sl[cols].values.transpose()
         text = []
+
         for i in range(len(y)):
             row = []
             for j in range(len(x)):
-                act_val = f'{act_vals[i][j]:.2f}' if x[j] == 'EPA / Play' else f'{act_vals[i][j]:.1f}'
-                if x[j] in ['Success Rate', 'WPA']:
+                act_val = f'{act_vals[i][j]:.2f}' if y[i] == 'EPA / Play' else f'{act_vals[i][j]:.1f}'
+                if y[i] in ['Success Rate', 'WPA']:
                     act_val += '%'
                 row.append(f'<span style="font-size: 14px">{act_val}</span><br><span style="font-size: 10px">({z[i][j]:.0%})</span>')
             text.append(row)
 
         h = go.Heatmap(
-            x=x,
+            x=[f'{x} Down' for x in x],
             y=y,
             z=z,
             text=text,
@@ -153,32 +347,39 @@ def production_by_down(team_data: pd.DataFrame, league_data: pd.DataFrame, home_
         )
 
     # Wordmarks
+    winner = 0 if away_score > home_score else 1
     for i in range(len(wordmarks)):
         response = requests.get(wordmarks[i])
         logo_img = Image.open(BytesIO(response.content))
 
         col_wid = (1 / 2) - (H_SPACING / 2)
+        y = 1.12 - ((0.475 + H_SPACING)*i)
+
         fig.add_layout_image(
             x=0,
-            y=1.075 - ((0.475 + H_SPACING)*i),
+            y=y,
             sizex=.15,
             sizey=.15,
             xanchor='left',
-            yanchor='bottom',
+            yanchor='middle',
             xref='paper', 
             yref='paper',
             source=logo_img,
         )
         fig.add_annotation(
-            text=f' - {away_score if i == 0 else home_score}',
-            font=dict(weight='bold', size=20),
-            x=.135,
-            y=1.075 - ((0.475 + H_SPACING)*i),
+            text=f'{away_score if i == 0 else home_score}',
+            font=dict(
+                weight='bold' if winner == i else 'normal', 
+                color='#323232' if winner == i else '#585858',
+                size=20
+            ),
+            x=.225,
+            y=y,
             xref='paper', 
             yref='paper',
             showarrow=False,
-            xanchor='left',
-            yanchor='bottom',
+            xanchor='right',
+            yanchor='middle',
         )
 
     fig.update_xaxes(
@@ -207,7 +408,7 @@ def production_by_down(team_data: pd.DataFrame, league_data: pd.DataFrame, home_
             x=0.5
         ),
         margin_pad=5,
-        margin=dict(t=85, l=50, b=50)
+        margin=dict(t=85, l=100, b=50)
     )
     # Credits
     fig.add_annotation(
@@ -335,32 +536,39 @@ def production_by_qtr(team_data: pd.DataFrame, league_data: pd.DataFrame, home_t
         )
 
     # Wordmarks
+    winner = 0 if away_score > home_score else 1
     for i in range(len(wordmarks)):
         response = requests.get(wordmarks[i])
         logo_img = Image.open(BytesIO(response.content))
 
         col_wid = (1 / 2) - (H_SPACING / 2)
+        y = 1.12 - ((0.475 + H_SPACING)*i)
+        
         fig.add_layout_image(
             x=0,
-            y=1.075 - ((0.475 + H_SPACING)*i),
+            y=y,
             sizex=.15,
             sizey=.15,
             xanchor='left',
-            yanchor='bottom',
+            yanchor='middle',
             xref='paper', 
             yref='paper',
             source=logo_img,
         )
         fig.add_annotation(
-            text=f' - {away_score if i == 0 else home_score}',
-            font=dict(weight='bold', size=20),
-            x=.135,
-            y=1.075 - ((0.475 + H_SPACING)*i),
+            text=f'{away_score if i == 0 else home_score}',
+            font=dict(
+                weight='bold' if winner == i else 'normal', 
+                color='#323232' if winner == i else '#585858',
+                size=20
+            ),
+            x=.225,
+            y=y,
             xref='paper', 
             yref='paper',
             showarrow=False,
-            xanchor='left',
-            yanchor='bottom',
+            xanchor='right',
+            yanchor='middle',
         )
 
     fig.update_xaxes(
@@ -447,7 +655,12 @@ def receiver_sr_down_distance(league_data: pd.DataFrame, player_info: pd.DataFra
     # Merge in total attempts
     receiver_total_plays = pass_data.groupby('receiver')['pass'].sum()
     viz_slice['Plays'] = viz_slice.index.map(receiver_total_plays)
+
+    # Filter to min_plays, while keeping at most 12 players (seems to be max that will export)
     viz_slice = viz_slice.loc[viz_slice['Plays'] >= min_plays, :].sort_values(by='Plays', ascending=False)
+    while len(viz_slice) > 12:
+        min_plays += 1
+        viz_slice = viz_slice.loc[viz_slice['Plays'] >= min_plays, :].sort_values(by='Plays', ascending=False)
 
     # Add player info
     player_ids = receiver_sr_by_down.reset_index().groupby('receiver')['player_id'].first()
@@ -493,8 +706,10 @@ def receiver_sr_down_distance(league_data: pd.DataFrame, player_info: pd.DataFra
     )
 
     # Headshots
+    print(f'N Receivers: {n_players}')
     for i in range(n_players):
         if not headshots[i]: continue
+        print(i)
 
         response = requests.get(headshots[i])
         headshot = Image.open(BytesIO(response.content))
@@ -547,7 +762,7 @@ def receiver_sr_down_distance(league_data: pd.DataFrame, player_info: pd.DataFra
     )
 
     ## Export ##
-    if export: 
+    if export:
         pio.write_image(fig, f"{VISUALS_FOLDER}/week {week}/game review/{home_team}-{away_team}/Receiving SR by Down & Distance - Week {week} - {home_team} vs {away_team}.png", height=700, width=900, scale=6)
 
     return fig
@@ -594,15 +809,16 @@ def rusher_sr_down_distance(league_data: pd.DataFrame, player_info: pd.DataFrame
     total_attempts_by_rusher = run_data.groupby('rusher')['rush_attempt'].sum()
     viz_slice['Attempts'] = viz_slice.index.map(total_attempts_by_rusher)
 
-    # Filter to min attempts
+    # Filter to min attempts, while keeping at most 12 players (seems to be max that will export)
     viz_slice = viz_slice.loc[viz_slice['Attempts'] >= min_attempts, :].sort_values(by='Attempts', ascending=False)
+    while len(viz_slice) > 12:
+        min_attempts += 1
+        viz_slice = viz_slice.loc[viz_slice['Attempts'] >= min_attempts, :].sort_values(by='Attempts', ascending=False)
 
     # Add player info
     player_ids = rusher_by_down_distance.reset_index().groupby('rusher')['player_id'].first()
-    # print(player_ids)
     viz_slice['player_id'] = viz_slice.index.map(player_ids)
     viz_slice['headshot'] = viz_slice['player_id'].map(player_info.set_index('gsis_id')['headshot'])
-    # print(viz_slice.to_string())
 
     # Annotations
     annot_df = viz_slice[DOWNS].copy() # Initialize with data, convert to string
@@ -616,8 +832,6 @@ def rusher_sr_down_distance(league_data: pd.DataFrame, player_info: pd.DataFrame
             else:
                 annot_df.loc[r, c] = f"{success_rate:,.1f}%<br>({successes:,.0f} / {attempts:,.0f})"
     
-    # print(annot_df.to_string())
-
     ## Figure ##
     
     # Heatmap
@@ -627,12 +841,6 @@ def rusher_sr_down_distance(league_data: pd.DataFrame, player_info: pd.DataFrame
     text=annot_df.values.tolist()
     headshots = viz_slice['headshot'].tolist()
     n_players = len(headshots)
-    # print(x)
-    # print(y)
-    # print(z)
-    # print(text)
-    # print(headshots)
-    # print(f'{n_players = }')
 
     heat_map = go.Heatmap(
         x=x,
@@ -653,9 +861,10 @@ def rusher_sr_down_distance(league_data: pd.DataFrame, player_info: pd.DataFrame
     )
 
     # Headshots
-    # print(headshots)
+    print(f'N Rushers: {n_players}')
     for i in range(n_players):
         if not headshots[i]: continue
+        print(i)
 
         response = requests.get(headshots[i])
         headshot = Image.open(BytesIO(response.content))
@@ -708,11 +917,8 @@ def rusher_sr_down_distance(league_data: pd.DataFrame, player_info: pd.DataFrame
         align='right'
     )
 
-    # fig.show()
-
     ## Export ##
     if export: 
-        # print('exporting')
         pio.write_image(fig, f"{VISUALS_FOLDER}/week {week}/game review/{home_team}-{away_team}/Rushing SR by Down & Distance - Week {week} - {home_team} vs {away_team}.png", 
                         scale=6, height=700, width=900)
 
@@ -864,21 +1070,23 @@ def run_game_review(league_data: pd.DataFrame, team_data: pd.DataFrame, player_i
 
     if not os.path.exists(folder):
         os.mkdir(folder)
-    else:
-        print(f'{home_team}-{away_team}: already done!')
-        return
+    # else:
+    #     print(f'{home_team}-{away_team}: already done!')
+    #     return
 
     # Visuals
-    print(f'prod by down')
-    production_by_down(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
-    print(f'prod by qtr')
-    production_by_qtr(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    # print(f'team stats')
+    # offense_team_stats(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    # print(f'prod by down')
+    # production_by_down(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    # print(f'prod by qtr')
+    # production_by_qtr(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
     print(f'receiver sr')
     receiver_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_plays=2, export=True)
-    print(f'rusher sr')
-    rusher_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_attempts=1, export=True)
-    print(f'epa box score')
-    epa_box_score(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    # print(f'rusher sr')
+    # rusher_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_attempts=1, export=True)
+    # print(f'epa box score')
+    # epa_box_score(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
 
     print(f'Done.')
 
@@ -887,17 +1095,17 @@ def main(season: int, week: int):
     # Import data
     team_data = get_team_info()
     
-    league_data = get_pbp_data(years=[season])
+    league_data = get_pbp_data(years=[season], include_postseason=True)
     league_data = league_data.loc[(league_data['week'] <= week), :]
 
     player_info = get_player_info()
 
     # Get matchups
-    matchups = get_matchups(years=[season])
+    matchups = get_matchups(years=[season], include_postseason=True)
     matchups = matchups.loc[matchups['week'] == week, ['home_team', 'away_team']].to_dict(orient='records')
 
     # Run for each game
     for game in matchups:
-        # if game['home_team'] != 'ATL': continue
+        # if game['home_team'] in ['CAR', 'CHI']: continue
 
         run_game_review(league_data=league_data, team_data=team_data, player_info=player_info, home_team=game['home_team'], away_team=game['away_team'], week=week)

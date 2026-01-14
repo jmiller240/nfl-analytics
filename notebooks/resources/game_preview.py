@@ -1261,13 +1261,31 @@ def drives_per_game(team_data: pd.DataFrame, league_data: pd.DataFrame, home_tea
 def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, home_team: str, away_team: str, week: int, export: bool = False) -> list[go.Figure]:
     ''' Strengths / Weaknesses '''
 
+    ## Variables ##
+
+    # Columns of interest
+    pass_cols = ['Pass Yards / Play', 'Pass Success Rate', 'Explosive Pass Rate', 'Pass 1D Rate', 'Completion %', 'Sack Rate', 'INT Rate']
+    rush_cols = ['Rush Yards / Play', 'Rush Success Rate', 'Explosive Rush Rate', 'Rush 1D Rate', 'Stuff Rate']
+    off_cols = ['On Schedule Rate', 'Scramble Yards / Game', 'TO Rate', 'TFL Rate', 'Penalties / Game', 'Penalty Yards / Game', 'Third Down Success Rate', 'Red Zone Success Rate']
+    cols = pass_cols + rush_cols + off_cols
+
+    epa_cols = ['EPA / Play', 'Pass EPA / Play', 'Rush EPA / Play']
+
+    # Sort order
+    asc_cols = ['Stuff Rate', 'Sack Rate', 'INT Rate', 'TO Rate', 'TFL Rate', 'Penalties / Game', 'Penalty Yards / Game']
+    desc_cols = list(filter(lambda x: x not in asc_cols, cols))
+
+    # Display format
+    col_fmt = {'Pass Yards / Play': '.1f', 'Pass Success Rate': '.1%', 'Explosive Pass Rate': '.1%', 'Pass 1D Rate': '.1%', 'Completion %': '.1%', 'Sack Rate': '.1%', 'INT Rate': '.1%', 'Rush Yards / Play': '.1f', 'Rush Success Rate': '.1%', 'Explosive Rush Rate': '.1%', 'Rush 1D Rate': '.1%', 'Stuff Rate': '.1%', 'On Schedule Rate': '.1%', 'Scramble Yards / Game': '.1f', 'TO Rate': '.1%', 'TFL Rate': '.1%', 'Penalties / Game': '.1f', 'Penalty Yards / Game': '.0f', 'Third Down Conv %': '.1%', 'Third Down Success Rate': '.1%', 'Red Zone Success Rate': '.1%'}
+
+    # Matchup
     matchup_teams = [away_team, home_team]
     wordmarks = [team_data.loc[team_data.index == away_team, 'team_wordmark'].values[0], team_data.loc[team_data.index == home_team, 'team_wordmark'].values[0]]
     secondary_colors = [team_data.loc[team_data.index == away_team, 'team_color2'].values[0], team_data.loc[team_data.index == home_team, 'team_color2'].values[0]]
 
     ## Data ##
 
-    # Offensive / Defensive Stats
+    # League wide Offensive / Defensive Stats
     team_offense = get_team_stats(league_data, unit='offense')
     team_offense = team_offense.merge(team_data[['team_logo_espn', 'team_wordmark']], left_index=True, right_index=True)
 
@@ -1277,23 +1295,7 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
     # All teams
     teams = team_offense.index.tolist()
 
-    # Columns of interest
-    pass_cols = ['Pass Yards / Play', 'Pass Success Rate', 'Explosive Pass Rate', 'Pass 1D Rate', 'Completion %', 'Sack Rate', 'INT Rate']
-    rush_cols = ['Rush Yards / Play', 'Rush Success Rate', 'Explosive Rush Rate', 'Rush 1D Rate', 'Stuff Rate']
-    off_cols = ['On Schedule Rate', 'Scramble Yards / Game', 'TOs / Game', 'TFLs / Game', 'Penalties / Game', 'Penalty Yards / Game', 'Third Down Conv %']
-    cols = pass_cols + rush_cols + off_cols
-
-    epa_cols = ['EPA / Play', 'Pass EPA / Play', 'Rush EPA / Play']
-
-    # Sort order
-    asc_cols = ['Stuff Rate', 'Sack Rate', 'INT Rate', 'TOs / Game', 'TFLs / Game', 'Penalties / Game', 'Penalty Yards / Game']
-    desc_cols = list(filter(lambda x: x not in asc_cols, cols))
-
-    # Display format
-    col_fmt = {'Pass Yards / Play': '.1f', 'Pass Success Rate': '.1%', 'Explosive Pass Rate': '.1%', 'Pass 1D Rate': '.1%', 'Completion %': '.1%', 'Sack Rate': '.1%', 'INT Rate': '.1%', 'Rush Yards / Play': '.1f', 'Rush Success Rate': '.1%', 'Explosive Rush Rate': '.1%', 'Rush 1D Rate': '.1%', 'Stuff Rate': '.1%', 'On Schedule Rate': '.1%', 'Scramble Yards / Game': '.1f', 'TOs / Game': '.1f', 'TFLs / Game': '.1f', 'Penalties / Game': '.1f', 'Penalty Yards / Game': '.0f', 'Third Down Conv %': '.1%'}
-
-    
-    # Offense
+    # Offense ranks
     offense_epa_df = pd.DataFrame(index=teams)
     offense_ranks_df = pd.DataFrame(index=teams)
 
@@ -1307,7 +1309,7 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
         method = 'max' if col in desc_cols else 'min'
         offense_ranks_df[col] = team_offense[col].rank(method=method, ascending=asc)
 
-    # Defense
+    # Defense ranks
     defense_epa_df = pd.DataFrame(index=teams)
     defense_ranks_df = pd.DataFrame(index=teams)
 
@@ -1634,17 +1636,17 @@ def run_game_preview(league_data: pd.DataFrame, team_data: pd.DataFrame, player_
 
     if not os.path.exists(folder):
         os.mkdir(folder)
-    else:
-        print(f'{home_team}-{away_team}: already done!')
-        return
+    # else:
+    #     print(f'{home_team}-{away_team}: already done!')
+    #     return
 
     # Run visuals
-    print(f'team form')
-    team_form_all_one(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
-    print(f'pass / rush tendencies')
-    pass_rush_down_distance_tendencies(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
-    print(f'viewing guide')
-    viewing_guide_offensive_tendencies(player_info=player_info, team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, home_qb_id=home_qb_id, away_qb_id=away_qb_id, week=week, export=True)
+    # print(f'team form')
+    # team_form_all_one(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    # print(f'pass / rush tendencies')
+    # pass_rush_down_distance_tendencies(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    # print(f'viewing guide')
+    # viewing_guide_offensive_tendencies(player_info=player_info, team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, home_qb_id=home_qb_id, away_qb_id=away_qb_id, week=week, export=True)
     print(f'Strengths / weaknesses')
     strengths_weaknesses(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
 
@@ -1655,17 +1657,17 @@ def main(season: int, week: int):
     # Import data
     team_data = get_team_info()
     
-    league_data = get_pbp_data(years=[season])
+    league_data = get_pbp_data(years=[season], include_postseason=True)
     league_data = league_data.loc[(league_data['week'] < week), :]
 
     player_info = get_player_info()
 
     # Get matchups
-    matchups = get_matchups(years=[season], include_qb=True)
+    matchups = get_matchups(years=[season], include_qb=True, include_postseason=True)
     matchups = matchups.loc[matchups['week'] == week, ['home_team', 'away_team', 'home_qb_id', 'away_qb_id']].to_dict(orient='records')
 
     # Run for each game
     for game in matchups:
-        # if game['away_team'] != 'IND': continue
+        # if game['away_team'] != 'GB': continue
 
         run_game_preview(league_data=league_data, team_data=team_data, player_info=player_info, matchup_dict=game, week=week) #home_team=game['home_team'], away_team=game['away_team'],

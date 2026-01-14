@@ -65,7 +65,7 @@ def calc_offensive_stats(pbp_data: pd.DataFrame) -> pd.DataFrame:
 
 
 
-def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = ['posteam']):
+def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = None):
     ROUND = 3
 
     unit_col = 'posteam' if unit == 'offense' else 'defteam'
@@ -100,7 +100,7 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = ['p
         Dropbacks=('qb_dropback', 'sum'),
         PassCompletions=('complete_pass', 'sum'),
         PassAttempts=('pass_attempt', 'sum'),
-        PassYards=('passing_yards', 'sum'),# lambda x: x[pbp_data['pass'] == 1].sum()),
+        PassYards=('passing_yards', 'sum'), # lambda x: x[pbp_data['pass'] == 1].sum()),
         PassTDs=('pass_touchdown', 'sum'),
         Pass1Ds=('first_down_pass', 'sum'),
         ExplosivePasses=('Explosive Play', lambda x: x[pbp_data['pass_attempt'] == 1].sum()),
@@ -119,34 +119,37 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = ['p
         Drives=('Master Drive ID', 'nunique'),
     )
 
+    # Adjustments
+    team_standard['PassYards'] = team_standard['PassYards'] + team_standard['SackYards']
+    team_standard['PassAttempts'] = team_standard['PassAttempts'] - team_standard['Sacks']
+
+    # Totals
+    team_standard['Turnovers'] = team_standard['INTs'] + team_standard['Fumbles']
+
     # Rates
-    team_standard['Completion %'] = team_standard['PassCompletions'] / (team_standard['PassAttempts'] - team_standard['Sacks'])
+    team_standard['Completion %'] = team_standard['PassCompletions'] / team_standard['PassAttempts']
     team_standard['On Schedule Rate'] = team_standard['OnSchedulePlays'] / team_standard['Plays']
     team_standard['Third Down Conv %'] = team_standard['ThirdDownConvs'] / team_standard['ThirdDownAtts']
 
     team_standard['1D Rate'] = team_standard['FirstDowns'] / team_standard['Plays']
-    team_standard['Pass 1D Rate'] = team_standard['Pass1Ds'] / team_standard['PassAttempts']
+    team_standard['Pass 1D Rate'] = team_standard['Pass1Ds'] / (team_standard['PassAttempts'] + team_standard['Sacks'])
     team_standard['Rush 1D Rate'] = team_standard['Rush1Ds'] / team_standard['RushAttempts']
 
     team_standard['Explosive Play Rate'] = team_standard['ExplosivePlays'] / team_standard['Plays']
-    team_standard['Explosive Pass Rate'] = team_standard['ExplosivePasses'] / team_standard['PassAttempts']
+    team_standard['Explosive Pass Rate'] = team_standard['ExplosivePasses'] / (team_standard['PassAttempts'] + team_standard['Sacks'])
     team_standard['Explosive Rush Rate'] = team_standard['ExplosiveRushes'] / team_standard['RushAttempts']
 
+    team_standard['TFL Rate'] = team_standard['TFLs'] / team_standard['Plays']
     team_standard['Stuff Rate'] = team_standard['StuffedRushes'] / team_standard['RushAttempts']
-    team_standard['Sack Rate'] = team_standard['Sacks'] / team_standard['PassAttempts']
+    team_standard['Sack Rate'] = team_standard['Sacks'] / (team_standard['PassAttempts'] + team_standard['Sacks'])
 
+    team_standard['TO Rate'] = team_standard['Turnovers'] / team_standard['Plays']
     team_standard['INT Rate'] = team_standard['INTs'] / team_standard['PassAttempts']
-
-    # Adjustments
-    team_standard['PassYards'] = team_standard['PassYards'] + team_standard['SackYards']
 
     # Per Play
     team_standard['Yards / Play'] = team_standard['Yards'] / team_standard['Plays']
-    team_standard['Pass Yards / Play'] = team_standard['PassYards'] / team_standard['DesignedPassPlays']
-    team_standard['Rush Yards / Play'] = team_standard['RushYards'] / team_standard['DesignedRushPlays']
-
-    # Totals
-    team_standard['Turnovers'] = team_standard['INTs'] + team_standard['Fumbles']
+    team_standard['Pass Yards / Play'] = team_standard['PassYards'] / (team_standard['PassAttempts'] + team_standard['Sacks'])
+    team_standard['Rush Yards / Play'] = team_standard['RushYards'] / team_standard['RushAttempts']
 
     # Per game
     team_standard['Plays / Game'] = team_standard['Plays'] / team_standard['Games']
@@ -174,16 +177,21 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = ['p
 
     ## Advanced ##
     team_advanced = pbp_data.loc[(pbp_data['Offensive Snap']) & (~pbp_data['Is Special Teams Play']), :].groupby(gpby_cols).aggregate(
-    # team_advanced = pbp_data.groupby(gpby_col).aggregate(
         PlaysAdv=('posteam', 'size'),
         PassPlays=('pass', 'sum'),
         RushPlays=('rush', 'sum'),
+        ThirdDownPlays=('posteam', lambda x: x[pbp_data['down'] == 3].shape[0]),
+        RedZonePlays=('posteam', lambda x: x[pbp_data['yardline_100'] <= 20].shape[0]),
         EPA=('epa', 'sum'),
         RushEPA=('epa', lambda x: x[pbp_data['rush'] == 1].sum()),
         PassEPA=('epa', lambda x: x[pbp_data['pass'] == 1].sum()),
+        ThirdDownEPA=('epa', lambda x: x[pbp_data['down'] == 3].sum()),
+        RedZoneEPA=('epa', lambda x: x[pbp_data['yardline_100'] <= 20].sum()),
         Successes=('success', 'sum'),
         RushSuccesses=('success', lambda x: x[pbp_data['rush'] == 1].sum()),
         PassSuccesses=('success', lambda x: x[pbp_data['pass'] == 1].sum()),
+        ThirdDownSuccesses=('success', lambda x: x[pbp_data['down'] == 3].sum()),
+        RedZoneSuccesses=('success', lambda x: x[pbp_data['yardline_100'] <= 20].sum()),
         WPA=('wpa', 'sum'),
         RushWPA=('wpa', lambda x: x[pbp_data['rush'] == 1].sum()),
         PassWPA=('wpa', lambda x: x[pbp_data['pass'] == 1].sum()),
@@ -192,9 +200,13 @@ def get_team_stats(pbp_data: pd.DataFrame, unit: str, gpby_cols: list[str] = ['p
     team_advanced['EPA / Play'] = round(team_advanced['EPA'] / team_advanced['PlaysAdv'], ROUND)
     team_advanced['Rush EPA / Play'] = round(team_advanced['RushEPA'] / team_advanced['RushPlays'], ROUND)
     team_advanced['Pass EPA / Play'] = round(team_advanced['PassEPA'] / team_advanced['PassPlays'], ROUND)
+    team_advanced['Third Down EPA / Play'] = round(team_advanced['ThirdDownEPA'] / team_advanced['ThirdDownPlays'], ROUND)
+    team_advanced['Red Zone EPA / Play'] = round(team_advanced['RedZoneEPA'] / team_advanced['RedZonePlays'], ROUND)
     team_advanced['Success Rate'] = round(team_advanced['Successes'] / team_advanced['PlaysAdv'], ROUND)
     team_advanced['Rush Success Rate'] = round(team_advanced['RushSuccesses'] / team_advanced['RushPlays'], ROUND)
     team_advanced['Pass Success Rate'] = round(team_advanced['PassSuccesses'] / team_advanced['PassPlays'], ROUND)
+    team_advanced['Third Down Success Rate'] = round(team_advanced['ThirdDownSuccesses'] / team_advanced['ThirdDownPlays'], ROUND)
+    team_advanced['Red Zone Success Rate'] = round(team_advanced['RedZoneSuccesses'] / team_advanced['RedZonePlays'], ROUND)
     team_advanced['WPA / Play'] = round(team_advanced['WPA'] / team_advanced['PlaysAdv'], ROUND)
     team_advanced['Rush WPA / Play'] = round(team_advanced['RushWPA'] / team_advanced['RushPlays'], ROUND)
     team_advanced['Pass WPA / Play'] = round(team_advanced['PassWPA'] / team_advanced['PassPlays'], ROUND)
