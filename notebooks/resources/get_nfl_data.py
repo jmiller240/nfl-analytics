@@ -92,7 +92,9 @@ def pass_length(air_yards):
     if not air_yards:
         return
     
-    if air_yards <= 10:
+    if air_yards <= 0:
+        return 'Behind LOS'
+    elif air_yards <= 10:
         return 'Short'
     elif air_yards <= 20:
         return 'Medium'
@@ -190,11 +192,21 @@ def get_pbp_data(years: list[int], include_postseason: bool = False) -> DataFram
     pandas dataframe
     '''
 
-    if years == [2025]:
-        if os.path.exists(f'c:/Users/jack.miller/Documents/Personal/nfl-analytics/notebooks/data/2025_pbp.csv'):
+    if not include_postseason:
+        data_available = True
+        for year in years:
+            if not os.path.exists(f'/Users/jmiller/Documents/Fun/nfl/notebooks/data/{year}_pbp.csv'):
+                data_available = False
+
+        if data_available:
+            pbp_df = pd.DataFrame()
             print('Reading local')
-            df = pd.read_csv('c:/Users/jack.miller/Documents/Personal/nfl-analytics/notebooks/data/2025_pbp.csv')
-            return df
+            for year in years:
+                df = pd.read_csv(f'/Users/jmiller/Documents/Fun/nfl/notebooks/data/{year}_pbp.csv')
+                pbp_df = pd.concat([pbp_df, df])
+            
+            pbp_df = pbp_df.reset_index(drop=True)
+            return pbp_df
 
     ## Download ##
     pbp_data: DataFrame = nfl.import_pbp_data(years)
@@ -202,13 +214,15 @@ def get_pbp_data(years: list[int], include_postseason: bool = False) -> DataFram
 
     # Add ftn
     ftn_years = list(filter(lambda x: x >= 2022, years))
-    ftn = nfl.import_ftn_data(years=ftn_years, columns=FTN_COLS)
-    ftn = ftn.copy()
+    if ftn_years:
+        ftn = nfl.import_ftn_data(years=ftn_years, columns=FTN_COLS)
+        ftn = ftn.copy()
 
-    pbp_data = pbp_data.merge(ftn, left_on=['game_id', 'play_id'], 
-                                 right_on=['nflverse_game_id', 'nflverse_play_id'],
-                                how='left')
+        pbp_data = pbp_data.merge(ftn, left_on=['game_id', 'play_id'], 
+                                    right_on=['nflverse_game_id', 'nflverse_play_id'],
+                                    how='left')
 
+        pbp_data['QB Position'] = pbp_data['qb_location'].apply(lambda x: qb_position(x))
 
     ## Modifications ##
 
@@ -266,8 +280,6 @@ def get_pbp_data(years: list[int], include_postseason: bool = False) -> DataFram
     pbp_data['Down & Distance'] = pbp_data.apply(lambda x: down_distance_range(x['down'], x['ydstogo']), axis=1)
 
     # Play locations
-    pbp_data['QB Position'] = pbp_data['qb_location'].apply(lambda x: qb_position(x))
-
     pbp_data['Run Location'] = pbp_data.apply(lambda x: run_location(x['run_location'], x['run_gap']), axis=1)
 
     pbp_data['Pass Length'] = pbp_data['air_yards'].apply(lambda x: pass_length(x))

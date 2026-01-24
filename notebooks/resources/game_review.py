@@ -85,6 +85,9 @@ def offense_team_stats(team_data: pd.DataFrame, league_data: pd.DataFrame, home_
     # Team stats - This game
     game_data = league_data.loc[(league_data['week'] == week) & (league_data['away_team'] == away_team) & (league_data['home_team'] == home_team), :]
     game_team_stats = get_team_stats(game_data, unit='offense')
+    game_team_stats['Red Zone Success Rate'] = game_team_stats['Red Zone Success Rate'].fillna(0)
+
+    # game_team_stats.to_csv(f'{VISUALS_FOLDER}/week {week}/game review/{home_team}-{away_team}/team_stats.csv')
 
     # Percentile this game performance
     cols_to_use = ['Pass Yards / Play', 'Pass Success Rate', 'Explosive Pass Rate', 'Pass 1D Rate', 'Sack Rate', 'Rush Yards / Play', 'Rush Success Rate', 'Explosive Rush Rate', 'Rush 1D Rate', 'Stuff Rate', 'Third Down Success Rate', 'Red Zone Success Rate', 'TO Rate', 'TFL Rate']
@@ -128,6 +131,7 @@ def offense_team_stats(team_data: pd.DataFrame, league_data: pd.DataFrame, home_
 
     data['fmt'] = data['Metric'].map(col_fmt_py)
     data['value str'] = data.apply(lambda x: fmt_value(x['Value'], x['fmt']), axis=1)
+    # print(data[['Metric', 'Value', 'Percentile', 'fmt', 'value str']].to_string())
     data['text'] = '<b>' + data['value str'].astype(str) + '</b> (' +  (data['Percentile']*100).round(0).astype(int).astype(str) + 'th %ile)'
 
 
@@ -1070,23 +1074,23 @@ def run_game_review(league_data: pd.DataFrame, team_data: pd.DataFrame, player_i
 
     if not os.path.exists(folder):
         os.mkdir(folder)
-    # else:
-    #     print(f'{home_team}-{away_team}: already done!')
-    #     return
+    else:
+        print(f'{home_team}-{away_team}: already done!')
+        return
 
     # Visuals
-    # print(f'team stats')
-    # offense_team_stats(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
-    # print(f'prod by down')
-    # production_by_down(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
-    # print(f'prod by qtr')
-    # production_by_qtr(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    print(f'team stats')
+    offense_team_stats(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    print(f'prod by down')
+    production_by_down(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    print(f'prod by qtr')
+    production_by_qtr(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
     print(f'receiver sr')
     receiver_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_plays=2, export=True)
-    # print(f'rusher sr')
-    # rusher_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_attempts=1, export=True)
-    # print(f'epa box score')
-    # epa_box_score(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    print(f'rusher sr')
+    rusher_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_attempts=1, export=True)
+    print(f'epa box score')
+    epa_box_score(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
 
     print(f'Done.')
 

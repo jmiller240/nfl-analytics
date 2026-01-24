@@ -121,3 +121,56 @@ def get_player_stats(pbp_data: pd.DataFrame) -> pd.DataFrame:
     player_epa = player_epa.set_index(['team', 'player'])
 
     return player_epa
+
+
+def receiving_stats(pbp_data: pd.DataFrame) -> pd.DataFrame:
+
+    ## Data ##
+
+    # Player / team info
+    player_info = nfl.import_players()
+    team_info = get_team_info()
+
+    # Get pass data
+    pass_data = pbp_data.loc[pbp_data['pass'] == 1, :]
+
+    ## Crunch ##
+
+    receiving = pass_data.groupby(['posteam', 'receiver']).aggregate(
+        player_id=('receiver_player_id', 'first'),
+        Plays=('pass', 'sum'),
+        Targets=('pass_attempt', 'sum'),
+        Receptions=('complete_pass', 'sum'),
+        ReceptionsWithYAC=('complete_pass', lambda x: x[pass_data['yards_after_catch'] > 0].sum()),
+        Yards=('passing_yards', 'sum'),
+        YAC=('yards_after_catch', 'sum'),
+        ADOT=('air_yards', lambda x: x[pass_data['pass_attempt'] == 1].mean()),
+        TDs=('touchdown', 'sum'),
+        FirstDowns=('first_down', 'sum'),
+        Successes=('success', 'sum'),
+        EPA=('epa', 'sum')
+    )
+    receiving['Catch Rate'] = receiving['Receptions'] / receiving['Targets']
+    receiving['% Receptions with YAC'] = receiving['ReceptionsWithYAC'] / receiving['Receptions']
+
+    receiving['Target Share'] = receiving['Targets'] / receiving.groupby(level='posteam')['Targets'].sum()
+    receiving['Target Share LRank'] = receiving['Target Share'].rank(ascending=False, method='min')
+
+    receiving['Yards Share'] = receiving['Yards'] / receiving.groupby(level='posteam')['Yards'].sum()
+    receiving['Yards Share LRank'] = receiving['Yards Share'].rank(ascending=False, method='min')
+
+    receiving['Yards / Target'] = receiving['Yards'] / receiving['Targets']
+    receiving['Yards / Catch'] = receiving['Yards'] / receiving['Receptions']
+    receiving['EPA / Play'] = receiving['EPA'] / receiving['Plays']
+    receiving['Success Rate'] = receiving['Successes'] / receiving['Plays']
+
+    ## Add logo / team color / headshot ##
+    receiving['team_logo_espn'] = receiving.index.get_level_values('posteam').map(team_info['team_logo_espn'])
+    receiving['team_color'] = receiving.index.get_level_values('posteam').map(team_info['team_color'])
+
+    receiving = receiving.reset_index()
+    receiving = receiving.merge(player_info[['gsis_id', 'position', 'headshot']], left_on='player_id', right_on='gsis_id', how='left').drop(columns=['gsis_id'])
+    receiving = receiving.set_index(['posteam', 'receiver'])
+
+    return receiving
+

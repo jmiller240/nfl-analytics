@@ -48,6 +48,19 @@ pass_len_mapper = {
 def pass_len_mapper_func(pass_len):
     return pass_len_mapper[pass_len]
 
+def get_week_name(week: int):
+    if week <= 18:
+        return f'Week {week}'
+    
+    if week == 19:
+        return 'Wild Card Round'
+    elif week == 20:
+        return 'Divisional Round'
+    elif week == 21:
+        return 'Conference Championship Round'
+    elif week == 22:
+        return 'Super Bowl'
+
 
 ''' Functions '''
 
@@ -449,8 +462,9 @@ def team_form_all_one(team_data: pd.DataFrame, league_data: pd.DataFrame, home_t
         title_standoff=1
     )
     title = f'Team Form: {home_team} vs. {away_team}'
+    week_name = get_week_name(week)
     fig.update_layout(
-        title=f'<b>{title}</b><br><sup>75-play rolling EPA / Play across last 8 games; ahead of their Week {week} matchup</sup>',
+        title=f'<b>{title}</b><br><sup>75-play rolling EPA / Play across last 8 games; ahead of their {week_name} matchup</sup>',
         template='nfl_template',
         showlegend=False,
         margin=dict(t=110, b=60, pad=5),
@@ -481,7 +495,12 @@ def pass_rush_down_distance_tendencies(team_data: pd.DataFrame, league_data: pd.
 
     matchup_teams = [away_team, home_team]
 
-    ## Data (filter to Normal Game State) ## 
+    ## Data  ## 
+
+    # Filter to regular season only
+    league_data = league_data.loc[league_data['week'] <= 18, :].reset_index(drop=True)
+
+    # filter to Normal Game State
 
     # Filter 1st downs to only 1st and 10
     league_pbp_normal_gs = league_data.loc[~((league_data['down'] == 1) & (league_data['ydstogo'] != 10)),:].copy()
@@ -583,7 +602,7 @@ def pass_rush_down_distance_tendencies(team_data: pd.DataFrame, league_data: pd.
     )
     fig.update_layout(
         template='nfl_template',
-        title=f'<b>Pass / Rush Tendencies by Down & Distance</b><br><sup>"Normal" game state: qtrs 1-3, score within 14 pts</sup>',
+        title=f'<b>Pass / Rush Tendencies by Down & Distance</b><br><sup>"Normal" game state: qtrs 1-3, score within 14 pts; regular season only</sup>',
         margin=dict(t=50, l=75, b=60),
     )
 
@@ -615,6 +634,9 @@ def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.
                             player_info.loc[player_info['gsis_id'] == home_qb_id, 'headshot'].values[0]]
                             
     ## Data ##
+
+    # Filter to regular season only
+    league_data = league_data.loc[league_data['week'] <= 18, :].reset_index(drop=True)
 
     ## QB Positions
     qb_pos_order = ['Under Center', 'Shotgun', 'Pistol']
@@ -1076,10 +1098,11 @@ def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.
 
     width=1000
     height=1250
+    week_name = get_week_name(week)
     fig.update_layout(
         template='nfl_template',
         title=dict(
-            text=f'<b style="font-size: 24px;">Viewing Guide: Offensive Tendencies</b><br><span style="font-size: 16px;">Week {week}: {home_team} vs. {away_team}</span>',
+            text=f'<b style="font-size: 24px;">Viewing Guide: Offensive Tendencies</b><br><span style="font-size: 16px;">{week_name}: {home_team} vs. {away_team}</span>',
             yref='container', y=0.97,
             x=0.5
         ),
@@ -1145,7 +1168,7 @@ def viewing_guide_offensive_tendencies(player_info: pd.DataFrame, team_data: pd.
 
     # Credits
     fig.add_annotation(
-        text=f'Figure: @clankeranalytic | Data: nfl_data_py | {datetime.today().strftime("%Y-%m-%d")}',
+        text=f'Regular season only<br>Figure: @clankeranalytic | Data: nfl_data_py | {datetime.today().strftime("%Y-%m-%d")}',
         showarrow=False,
         xref='paper',
         yref='paper',
@@ -1284,6 +1307,9 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
     secondary_colors = [team_data.loc[team_data.index == away_team, 'team_color2'].values[0], team_data.loc[team_data.index == home_team, 'team_color2'].values[0]]
 
     ## Data ##
+
+    # Filter to regular season only
+    league_data = league_data.loc[league_data['week'] <= 18, :].reset_index(drop=True)
 
     # League wide Offensive / Defensive Stats
     team_offense = get_team_stats(league_data, unit='offense')
@@ -1590,9 +1616,10 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
             source=img,
         )
 
+        week_name = get_week_name(week)
         fig.update_layout(
             template='nfl_template',
-            title=f'<b>{team1} Offense vs. {team2} Defense</b><br><sup>Comparing strengths and weaknesses ahead of their Week {week} matchup</sup>',
+            title=f'<b>{team1} Offense vs. {team2} Defense</b><br><sup>Comparing strengths and weaknesses ahead of their {week_name} matchup</sup>',
             margin=dict(b=25, l=25, r=25, t=115),
             width=700,
             height=600
@@ -1600,7 +1627,7 @@ def strengths_weaknesses(team_data: pd.DataFrame, league_data: pd.DataFrame, hom
 
         # Credits
         fig.add_annotation(
-            text=f'<span style="color: rgba(0, 68, 27, 0.8); font-weight: bold;">Green</span> colors denote higher league ranks, <span style="color: rgba(64, 0, 75, 0.8); font-weight: bold;">purple</span> colors denote lower league ranks<br>Figure: @clankeranalytic | Data: nfl_data_py | {datetime.today().strftime("%Y-%m-%d")}',
+            text=f'<span style="color: rgba(0, 68, 27, 0.8); font-weight: bold;">Green</span> colors denote higher league ranks, <span style="color: rgba(64, 0, 75, 0.8); font-weight: bold;">purple</span> colors denote lower league ranks; regular season only<br>Figure: @clankeranalytic | Data: nfl_data_py | {datetime.today().strftime("%Y-%m-%d")}',
             showarrow=False,
             xref='paper',
             yref='paper',
@@ -1640,15 +1667,15 @@ def run_game_preview(league_data: pd.DataFrame, team_data: pd.DataFrame, player_
     #     print(f'{home_team}-{away_team}: already done!')
     #     return
 
-    # Run visuals
+    ## Run visuals
     # print(f'team form')
     # team_form_all_one(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
     # print(f'pass / rush tendencies')
     # pass_rush_down_distance_tendencies(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
-    # print(f'viewing guide')
-    # viewing_guide_offensive_tendencies(player_info=player_info, team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, home_qb_id=home_qb_id, away_qb_id=away_qb_id, week=week, export=True)
-    print(f'Strengths / weaknesses')
-    strengths_weaknesses(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    print(f'viewing guide')
+    viewing_guide_offensive_tendencies(player_info=player_info, team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, home_qb_id=home_qb_id, away_qb_id=away_qb_id, week=week, export=True)
+    # print(f'Strengths / weaknesses')
+    # strengths_weaknesses(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
 
     print(f'Done.')
 
