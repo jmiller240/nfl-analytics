@@ -6,7 +6,7 @@ from resources.game_preview import main as game_preview_main
 
 
 ''' Season / Week '''
-WEEK = 21
+WEEK = 22
 
 ''' Scripts '''
 GAME_REVIEW = False

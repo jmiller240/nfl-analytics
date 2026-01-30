@@ -1663,19 +1663,19 @@ def run_game_preview(league_data: pd.DataFrame, team_data: pd.DataFrame, player_
 
     if not os.path.exists(folder):
         os.mkdir(folder)
-    # else:
-    #     print(f'{home_team}-{away_team}: already done!')
-    #     return
+    else:
+        print(f'{home_team}-{away_team}: already done!')
+        return
 
     ## Run visuals
-    # print(f'team form')
-    # team_form_all_one(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
-    # print(f'pass / rush tendencies')
-    # pass_rush_down_distance_tendencies(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    print(f'team form')
+    team_form_all_one(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    print(f'pass / rush tendencies')
+    pass_rush_down_distance_tendencies(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
     print(f'viewing guide')
     viewing_guide_offensive_tendencies(player_info=player_info, team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, home_qb_id=home_qb_id, away_qb_id=away_qb_id, week=week, export=True)
-    # print(f'Strengths / weaknesses')
-    # strengths_weaknesses(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    print(f'Strengths / weaknesses')
+    strengths_weaknesses(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
 
     print(f'Done.')
 

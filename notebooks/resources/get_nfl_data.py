@@ -92,9 +92,9 @@ def pass_length(air_yards):
     if not air_yards:
         return
     
-    if air_yards <= 0:
-        return 'Behind LOS'
-    elif air_yards <= 10:
+    # if air_yards <= 0:
+    #     return 'Behind LOS'
+    if air_yards <= 10:
         return 'Short'
     elif air_yards <= 20:
         return 'Medium'
