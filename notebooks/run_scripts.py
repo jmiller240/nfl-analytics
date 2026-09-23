@@ -6,19 +6,21 @@ from resources.game_preview import main as game_preview_main
 
 
 ''' Season / Week '''
-WEEK = 22
+SEASON = 2026
+WEEK = 2
+
 
 ''' Scripts '''
-GAME_REVIEW = False
+GAME_REVIEW = True
 GAME_PREVIEW = True
 
 
 def run():
     if GAME_REVIEW:
-        game_review_main(season=2025, week=WEEK)
+        game_review_main(season=SEASON, week=WEEK)
 
     if GAME_PREVIEW:
-        game_preview_main(season=2025, week=WEEK)
+        game_preview_main(season=SEASON, week=WEEK)
 
 
 run()

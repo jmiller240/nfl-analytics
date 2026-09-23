@@ -4,6 +4,7 @@
 *.csv
 *pycache*
 *.DS_Store
+*.joblib
 
 # Folders
 data/

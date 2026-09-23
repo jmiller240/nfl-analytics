@@ -25,7 +25,7 @@ pio.templates['nfl_template'] = nfl_template
 
 ''' Helpers '''
 
-VISUALS_FOLDER = '/Users/jmiller/Documents/Fun/nfl/visuals'
+VISUALS_FOLDER = '/Users/jmiller/Documents/Fun/nfl/visuals/2026'
 
 qtr_mapper_obj = {
     1: 'Q1',
@@ -1085,12 +1085,12 @@ def run_game_review(league_data: pd.DataFrame, team_data: pd.DataFrame, player_i
     production_by_down(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
     print(f'prod by qtr')
     production_by_qtr(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
-    print(f'receiver sr')
-    receiver_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_plays=2, export=True)
-    print(f'rusher sr')
-    rusher_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_attempts=1, export=True)
-    print(f'epa box score')
-    epa_box_score(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
+    # print(f'receiver sr')
+    # receiver_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_plays=2, export=True)
+    # print(f'rusher sr')
+    # rusher_sr_down_distance(player_info=player_info, league_data=league_data, home_team=home_team, away_team=away_team, week=week, min_attempts=1, export=True)
+    # print(f'epa box score')
+    # epa_box_score(team_data=team_data, league_data=league_data, home_team=home_team, away_team=away_team, week=week, export=True)
 
     print(f'Done.')
 
@@ -1099,13 +1099,13 @@ def main(season: int, week: int):
     # Import data
     team_data = get_team_info()
     
-    league_data = get_pbp_data(years=[season], include_postseason=True)
+    league_data = get_pbp_data(years=[season], include_postseason=False)
     league_data = league_data.loc[(league_data['week'] <= week), :]
 
     player_info = get_player_info()
 
     # Get matchups
-    matchups = get_matchups(years=[season], include_postseason=True)
+    matchups = get_matchups(years=[season], include_postseason=False)
     matchups = matchups.loc[matchups['week'] == week, ['home_team', 'away_team']].to_dict(orient='records')
 
     # Run for each game

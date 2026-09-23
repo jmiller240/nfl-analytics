@@ -22,10 +22,10 @@ from resources.get_nfl_data import get_team_info, get_matchups, get_weeks, get_p
 
 ''' Constants / Parameters  '''
 
-CURRENT_SEASON = 2025
+CURRENT_SEASON = 2026
 
 ## Parameters
-INPUT_YEARS = [i for i in range(2018, 2026)]
+INPUT_YEARS = [i for i in range(2018, CURRENT_SEASON + 1)]
 
 FEATURE_TYPE = 'EPA / Play'
 LAST_N_WEEKS = [4,8,12,16]

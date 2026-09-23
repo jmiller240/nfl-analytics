@@ -21,10 +21,12 @@ from plotly.subplots import make_subplots
 
 from PIL import Image
 
-from resources.tier_chart import tier_chart
-from resources.plotly_theme import nfl_template
-from resources.get_nfl_data import get_team_info, get_player_info, get_pbp_data, get_matchups
-from resources.team_stats import get_team_stats
+from src.plotly_theme import nfl_template
+from src.loaders import get_pbp_data
+
+from notebooks.resources.tier_chart import tier_chart
+from notebooks.resources.get_nfl_data import get_team_info, get_player_info, get_matchups   #get_pbp_data
+from notebooks.resources.team_stats import get_team_stats
 
 pio.templates['nfl_template'] = nfl_template
 
@@ -1683,8 +1685,12 @@ def run_game_preview(league_data: pd.DataFrame, team_data: pd.DataFrame, player_
 def main(season: int, week: int):
     # Import data
     team_data = get_team_info()
+
+    pbp = get_pbp_data(years=[season])
+    print(pbp.head())
     
-    league_data = get_pbp_data(years=[season], include_postseason=True)
+    # league_data = get_pbp_data(years=[season], include_postseason=True)
+    league_data = pbp.to_pandas()
     league_data = league_data.loc[(league_data['week'] < week), :]
 
     player_info = get_player_info()
@@ -1695,6 +1701,4 @@ def main(season: int, week: int):
 
     # Run for each game
     for game in matchups:
-        # if game['away_team'] != 'GB': continue
-
-        run_game_preview(league_data=league_data, team_data=team_data, player_info=player_info, matchup_dict=game, week=week) #home_team=game['home_team'], away_team=game['away_team'],
+        run_game_preview(league_data=league_data, team_data=team_data, player_info=player_info, matchup_dict=game, week=week)
